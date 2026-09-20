@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-label="GER Cars Tanzania vehicle placeholder">
+<rect width="1200" height="675" fill="#0B1F33"/>
+<path d="M160 455h880l-55-120c-13-28-40-46-71-46H340c-31 0-58 18-71 46l-55 120z" fill="#173B5E"/>
+<circle cx="355" cy="465" r="58" fill="#071522"/><circle cx="355" cy="465" r="27" fill="#9AA7B5"/>
+<circle cx="845" cy="465" r="58" fill="#071522"/><circle cx="845" cy="465" r="27" fill="#9AA7B5"/>
+<path d="M385 290h430l105 115H280z" fill="#274F72"/>
+<text x="600" y="185" text-anchor="middle" font-family="Arial,sans-serif" font-size="64" font-weight="700" fill="#fff">GER CARS TANZANIA</text>
+<text x="600" y="245" text-anchor="middle" font-family="Arial,sans-serif" font-size="32" fill="#D8B45A">Vehicle photo unavailable</text>
+</svg>

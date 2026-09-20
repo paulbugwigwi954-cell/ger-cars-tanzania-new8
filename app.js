@@ -58,30 +58,21 @@ function openModal(html){$('#modalContent').innerHTML=html;$('#modal').hidden=fa
 function authModal(mode='login'){const signup=mode==='signup';openModal(`<span class="eyebrow">GER CARS TANZANIA</span><h2>${signup?'Create Account':'Login'}</h2><p>${signup?'Create a customer account to save cars and manage your marketplace activity.':'Login to your GER Cars Tanzania account.'}</p><form id="authForm" class="contact-form" autocomplete="off"><input id="authName" ${signup?'required':''} placeholder="Full name" ${signup?'':'hidden'}><input id="authPhone" placeholder="Phone number" ${signup?'':'hidden'}><input id="authEmail" required type="email" autocomplete="off" placeholder="Email address"><input id="authPassword" required minlength="6" type="password" autocomplete="new-password" placeholder="Password"><button class="btn primary" type="submit">${signup?'Create Account':'Login'}</button><button class="btn ghost" type="button" id="authSwitch">${signup?'Already have an account? Login':'New here? Create an account'}</button></form>`);$('#authSwitch').onclick=()=>authModal(signup?'login':'signup');$('#authForm').onsubmit=async e=>{e.preventDefault();if(!supabaseClient)return toast('Backend configuration is unavailable.');const email=$('#authEmail').value.trim(),password=$('#authPassword').value,btn=e.target.querySelector('button[type=submit]');btn.disabled=true;btn.textContent='Please wait…';try{if(signup){const {data,error}=await supabaseClient.auth.signUp({email,password,options:{data:{full_name:$('#authName').value.trim(),phone:$('#authPhone').value.trim()}}});if(error)throw error;closeModal();toast(data.session?'Account created and logged in':'Account created. Check your email to confirm your account.')}else{const {error}=await supabaseClient.auth.signInWithPassword({email,password});if(error)throw error;closeModal();toast('Login successful')}}catch(err){toast(err.message||'Authentication failed')}finally{btn.disabled=false;btn.textContent=signup?'Create Account':'Login'}}}
 async function loadCars(){
  if(!supabaseClient)return;
- const {data,error}=await supabaseClient.from('cars').select('*,car_images(public_url,sort_order)').eq('status','active').order('created_at',{ascending:false});
+ const {data,error}=await supabaseClient.from('cars').select('*').eq('status','active').order('created_at',{ascending:false});
  if(error){toast(error.message||'Could not load vehicles');return;}
- CAR_PHOTOS={};
- CARS=(data||[]).map(x=>{
-   const photos=(x.car_images||[]).filter(p=>p.public_url).sort((a,b)=>(a.sort_order??0)-(b.sort_order??0)).map(p=>p.public_url);
-   CAR_PHOTOS[x.id]=photos;
-   return {id:x.id,make:x.make,model:x.model,year:x.year,price:Number(x.price),mileage:x.mileage||0,condition:x.condition==='new'?'New':'Used',location:x.location||'',fuel:x.fuel_type||'',transmission:x.transmission||'',body:x.body_type||'',featured:x.featured,seller:'GER Verified Seller',description:x.description||'',engine_cc:x.engine_cc,drive_type:x.drive_type,doors:x.doors,seats:x.seats,exterior_color:x.exterior_color,interior_color:x.interior_color,registration_year:x.registration_year,import_year:x.import_year,ownership:x.ownership,service_history:x.service_history,accident_history:x.accident_history,condition_notes:x.condition_notes,features:x.features,documents:x.documents,warranty:x.warranty,negotiable:x.negotiable};
- });
- // Public marketplace shows only vehicles with real uploaded photos.
- CARS=CARS.filter(c=>CAR_PHOTOS[c.id]?.length);
+ CARS=(data||[]).map(x=>({id:x.id,make:x.make,model:x.model,year:x.year,price:Number(x.price),mileage:x.mileage||0,condition:x.condition==='new'?'New':'Used',location:x.location||'',fuel:x.fuel_type||'',transmission:x.transmission||'',body:x.body_type||'',featured:x.featured,seller:'GER Verified Seller',description:x.description||'',engine_cc:x.engine_cc,drive_type:x.drive_type,doors:x.doors,seats:x.seats,exterior_color:x.exterior_color,interior_color:x.interior_color,registration_year:x.registration_year,import_year:x.import_year,ownership:x.ownership,service_history:x.service_history,accident_history:x.accident_history,condition_notes:x.condition_notes,features:x.features,documents:x.documents,warranty:x.warranty,negotiable:x.negotiable}));
  current=[...CARS];
- renderCars();renderFavs();renderCompare();
+ await loadCarPhotos();
 }
-async function loadCarPhotos(){await loadCars()}
 async function loadProfile(){if(!authUser)return;const {data}=await supabaseClient.from('profiles').select('*').eq('id',authUser.id).maybeSingle();profile=data||{id:authUser.id,full_name:authUser.user_metadata?.full_name||'',phone:authUser.user_metadata?.phone||'',role:'customer'};}
 async function loadFavourites(){if(!authUser){favourites=JSON.parse(localStorage.getItem('ger_favourites')||'[]');renderCars();renderFavs();return}const {data,error}=await supabaseClient.from('favourites').select('car_id').eq('user_id',authUser.id);if(!error){favourites=(data||[]).map(x=>x.car_id);localStorage.setItem('ger_favourites',JSON.stringify(favourites));renderCars();renderFavs()}}
 async function loadCarPhotos(){
- if(!supabaseClient || !CARS.length)return;
+ if(!supabaseClient || !CARS.length){CAR_PHOTOS={};current=[];renderCars();renderFavs();renderCompare();return}
  const ids=CARS.map(c=>c.id);
  const {data,error}=await supabaseClient.from('car_images').select('car_id,public_url,sort_order').in('car_id',ids).order('sort_order',{ascending:true});
- if(error){toast(error.message);return}
+ if(error){toast(error.message||'Could not load vehicle photos');return}
  CAR_PHOTOS={};
- (data||[]).forEach(x=>{if(x.public_url){(CAR_PHOTOS[x.car_id] ||= []).push(x.public_url)}});
- // Never display a vehicle with no real uploaded photo.
+ (data||[]).forEach(x=>{if(x.public_url)(CAR_PHOTOS[x.car_id] ||= []).push(x.public_url)});
  CARS=CARS.filter(c=>CAR_PHOTOS[c.id]?.length);
  current=current.filter(c=>CAR_PHOTOS[c.id]?.length);
  renderCars();renderFavs();renderCompare();

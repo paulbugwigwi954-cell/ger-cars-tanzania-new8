@@ -68,11 +68,18 @@ async function loadProfile(){if(!authUser)return;const {data}=await supabaseClie
 async function loadFavourites(){if(!authUser){favourites=JSON.parse(localStorage.getItem('ger_favourites')||'[]');renderCars();renderFavs();return}const {data,error}=await supabaseClient.from('favourites').select('car_id').eq('user_id',authUser.id);if(!error){favourites=(data||[]).map(x=>x.car_id);localStorage.setItem('ger_favourites',JSON.stringify(favourites));renderCars();renderFavs()}}
 async function loadCarPhotos(){
  if(!supabaseClient || !CARS.length){CAR_PHOTOS={};current=[];renderCars();renderFavs();renderCompare();return}
- const ids=CARS.map(c=>c.id);
- const {data,error}=await supabaseClient.from('car_images').select('car_id,public_url,sort_order').in('car_id',ids).order('sort_order',{ascending:true});
- if(error){toast(error.message||'Could not load vehicle photos');return}
  CAR_PHOTOS={};
- (data||[]).forEach(x=>{if(x.public_url)(CAR_PHOTOS[x.car_id] ||= []).push(x.public_url)});
+ const results=await Promise.all(CARS.map(async c=>{
+   const {data,error}=await supabaseClient.from('car_images').select('public_url,sort_order').eq('car_id',c.id).not('public_url','is',null).order('sort_order',{ascending:true});
+   return {id:c.id,data:data||[],error};
+ }));
+ const failed=results.find(x=>x.error);
+ if(failed){toast(failed.error.message||'Could not load vehicle photos');return}
+ results.forEach(x=>{
+   const urls=x.data.map(row=>String(row.public_url||'').trim()).filter(url=>/^https:\/\//i.test(url));
+   if(urls.length)CAR_PHOTOS[x.id]=urls;
+ });
+ // Marketplace cards are published only when the dealer/seller has a real uploaded photo in car_images.
  CARS=CARS.filter(c=>CAR_PHOTOS[c.id]?.length);
  current=current.filter(c=>CAR_PHOTOS[c.id]?.length);
  renderCars();renderFavs();renderCompare();

@@ -50,7 +50,7 @@ function bindCards(){
 }
 function renderCompare(){navCounts();const box=$('#compareBox');const arr=CARS.filter(c=>compare.includes(c.id));if(!arr.length){box.innerHTML='<p>Select two or more cars using <b>Compare</b> on a listing.</p>';return}box.innerHTML=`<table class="compare-table"><tr><th>Specification</th>${arr.map(c=>`<th>${c.make} ${c.model}</th>`).join('')}</tr>${[['Price',c=>money(c.price)],['Year',c=>c.year],['Mileage',c=>Number(c.mileage||0).toLocaleString()+' KM'],['Condition',c=>c.condition],['Fuel',c=>c.fuel],['Transmission',c=>c.transmission],['Body Type',c=>c.body],['Location',c=>c.location]].map(([l,f])=>`<tr><td><b>${l}</b></td>${arr.map(c=>`<td>${f(c)}</td>`).join('')}</tr>`).join('')}</table>`}
 function openDetail(id){const c=CARS.find(x=>x.id===id);if(!c)return;const imgs=carImages(c);const specs=[['Make',c.make],['Model',c.model],['Year',c.year],['Condition',c.condition],['Price',money(c.price)],['Mileage',c.mileage?Number(c.mileage).toLocaleString()+' KM':'—'],['Fuel',c.fuel],['Transmission',c.transmission],['Body Type',c.body],['Engine',c.engine_cc?Number(c.engine_cc).toLocaleString()+' cc':'—'],['Drive Type',c.drive_type],['Doors',c.doors],['Seats',c.seats],['Exterior Colour',c.exterior_color],['Interior Colour',c.interior_color],['Registration Year',c.registration_year],['Import Year',c.import_year],['Ownership',c.ownership],['Warranty',c.warranty],['Negotiable',c.negotiable?'Yes':'No'],['Location',c.location]].filter(x=>x[1]!==undefined&&x[1]!==null&&x[1]!=='');const blocks=[['Description',c.description],['Condition / Inspection Notes',c.condition_notes],['Service History',c.service_history],['Accident History',c.accident_history],['Key Features',c.features],['Documents Available',c.documents]].filter(x=>x[1]);$('#modalContent').innerHTML=`<div class="detail-grid"><div><img id="detailMainImage" class="detail-main-image" src="${imgs[0]}" alt="${c.make} ${c.model}"><div class="detail-gallery">${imgs.map((src,i)=>`<button class="detail-thumb ${i===0?'active':''}" data-detail-photo="${src}"><img src="${src}" alt="${c.make} ${c.model} photo ${i+1}"></button>`).join('')}</div></div><div class="detail-info"><span class="eyebrow">${c.featured?'FEATURED • ':''}GER VERIFIED</span><h2>${c.make} ${c.model}</h2><div class="big">${money(c.price)}</div><p>${c.year||'—'} • ${Number(c.mileage||0).toLocaleString()} KM • ${c.transmission||'—'} • ${c.fuel||'—'}</p><p>📍 ${c.location||'—'} · Seller: ${c.seller||'GER Verified Seller'}</p><div class="detail-actions"><a class="btn primary" target="_blank" href="https://wa.me/255744211545?text=${encodeURIComponent('Hello GER Cars Tanzania, I am interested in '+c.make+' '+c.model+', Listing ID '+c.id+'.')}">WhatsApp</a><a class="btn ghost" href="tel:+255744211545">Call</a></div></div></div><hr><h3>Vehicle Information</h3><div class="vehicle-spec-grid">${specs.map(([l,v])=>`<div><small>${l}</small><b>${v}</b></div>`).join('')}</div>${blocks.map(([l,v])=>`<div class="vehicle-text"><h3>${l}</h3><p>${String(v).replace(/\n/g,'<br>')}</p></div>`).join('')}<hr><h3>Send an enquiry</h3><form id="carEnquiryForm" class="contact-form"><input name="name" required placeholder="Your name" value="${profile?.full_name||''}"><input name="phone" placeholder="Phone number" value="${profile?.phone||''}"><input name="email" type="email" placeholder="Email" value="${authUser?.email||''}"><textarea name="message" required placeholder="I am interested in this vehicle.">I am interested in the ${c.make} ${c.model} (Listing ${c.id}). Please contact me.</textarea><button class="btn primary" type="submit">Send Enquiry</button></form>`;$('#modal').hidden=false;$$('[data-detail-photo]').forEach(b=>b.onclick=()=>{$('#detailMainImage').src=b.dataset.detailPhoto;$$('[data-detail-photo]').forEach(x=>x.classList.remove('active'));b.classList.add('active')});$('#carEnquiryForm').onsubmit=e=>submitCarEnquiry(e,c)}
-async function submitCarEnquiry(e,c){e.preventDefault();const f=new FormData(e.target);const btn=e.target.querySelector('button');btn.disabled=true;try{const {error}=await supabaseClient.from('enquiries').insert({car_id:c.id,customer_id:authUser?.id||null,customer_name:String(f.get('name')||''),customer_phone:String(f.get('phone')||''),customer_email:String(f.get('email')||authUser.email||''),message:String(f.get('message')||''),channel:'website',status:'new'});if(error)throw error;closeModal();toast('Enquiry sent successfully');}catch(err){toast(err.message||'Could not send enquiry')}finally{btn.disabled=false}}
+async function submitCarEnquiry(e,c){e.preventDefault();const f=new FormData(e.target);const btn=e.target.querySelector('button');btn.disabled=true;try{const {error}=await supabaseClient.from('enquiries').insert({car_id:c.id,customer_id:authUser?.id||null,customer_name:String(f.get('name')||''),customer_phone:String(f.get('phone')||''),customer_email:String(f.get('email')||authUser?.email||''),message:String(f.get('message')||''),channel:'website',status:'new'});if(error)throw error;closeModal();toast('Enquiry sent successfully');}catch(err){toast(err.message||'Could not send enquiry')}finally{btn.disabled=false}}
 function applyFilters(){const q=$('#searchInput').value.toLowerCase().trim(),make=$('#makeFilter').value,condition=$('#conditionFilter').value.toLowerCase(),loc=$('#locationFilter').value;current=CARS.filter(c=>(!q||`${c.make} ${c.model}`.toLowerCase().includes(q))&&(!make||c.make===make)&&(!condition||c.condition.toLowerCase()===condition)&&(!loc||c.location===loc));sortCars();renderCars()}
 function sortCars(){const s=$('#sortSelect').value;if(s==='low')current.sort((a,b)=>a.price-b.price);if(s==='high')current.sort((a,b)=>b.price-a.price);if(s==='mileage')current.sort((a,b)=>(a.mileage||0)-(b.mileage||0));if(s==='newest')current.sort((a,b)=>b.year-a.year)}
 function monthly(){const P=Math.max(0,Number($('#loanPrice').value||0)-Number($('#loanDeposit').value||0)),r=Number($('#loanRate').value||0)/100/12,n=Number($('#loanYears').value||1)*12;const m=r?P*r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1):P/n;$('#monthlyPayment').textContent=money(Math.round(m))}
@@ -128,7 +128,34 @@ async function deleteSoldCar(id){
 function openSell(){
  if(!authUser){authModal('login');return}
  openModal(`<span class="eyebrow">LIST YOUR CAR</span><h2>Complete Vehicle Listing</h2><p>Jaza taarifa muhimu ambazo mnunuzi anahitaji kujua. Taarifa hizi zitaonekana kwenye ukurasa wa gari pamoja na picha zako.</p><form id="sellForm" class="contact-form listing-form"><h3>Basic vehicle details</h3><div class="form-row"><input name="make" required placeholder="Make e.g. Toyota"><input name="model" required placeholder="Model e.g. Harrier"></div><div class="form-row"><input name="year" type="number" min="1950" max="2035" required placeholder="Model year"><input name="price" type="number" min="0" required placeholder="Price (TZS)"></div><div class="form-row"><input name="mileage" type="number" min="0" placeholder="Mileage (KM)"><select name="condition"><option value="used">Used</option><option value="new">New</option></select></div><div class="form-row"><select name="fuel_type"><option>Petrol</option><option>Diesel</option><option>Hybrid</option><option>Electric</option></select><select name="transmission"><option>Automatic</option><option>Manual</option></select></div><div class="form-row"><input name="body_type" required placeholder="Body type e.g. SUV"><input name="location" required placeholder="Location e.g. Dar es Salaam"></div><div class="form-row"><input name="engine_cc" type="number" placeholder="Engine size e.g. 2000 cc"><select name="drive_type"><option value="">Drive type</option><option>2WD</option><option>4WD</option><option>AWD</option><option>FWD</option><option>RWD</option></select></div><div class="form-row"><input name="doors" type="number" min="2" max="6" placeholder="Doors"><input name="seats" type="number" min="1" max="20" placeholder="Seats"></div><div class="form-row"><input name="exterior_color" placeholder="Exterior colour"><input name="interior_color" placeholder="Interior colour"></div><h3>Registration & history</h3><div class="form-row"><input name="registration_year" type="number" placeholder="Registration year"><input name="import_year" type="number" placeholder="Import year (if applicable)"></div><input name="ownership" placeholder="Ownership e.g. 1st owner / 2nd owner"><textarea name="service_history" placeholder="Service history — where and when serviced, major maintenance, etc."></textarea><textarea name="accident_history" placeholder="Accident history — state clearly if accident-free or describe any known accident/repair history."></textarea><textarea name="condition_notes" placeholder="Current condition / inspection notes — tyres, engine, body, interior, known faults, etc."></textarea><h3>Features, documents & warranty</h3><textarea name="features" placeholder="Key features — AC, sunroof, reverse camera, leather seats, airbags, cruise control, parking sensors, etc."></textarea><textarea name="documents" placeholder="Documents available — logbook, import documents, service records, inspection report, etc."></textarea><input name="warranty" placeholder="Warranty — e.g. 3 months / manufacturer warranty / None"><label><input name="negotiable" type="checkbox"> Price is negotiable</label><textarea name="description" required placeholder="Full vehicle description for buyers"></textarea><label class="file-label">Car photos (1–12)<input id="carPhotoInput" name="photos" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple required></label><small class="muted">Select up to 12 real photos. Maximum 10 MB per photo.</small><div id="photoPreview" class="photo-upload-preview"></div><button class="btn primary" type="submit">Submit Listing for Review</button></form>`);
- $('#sellForm').onsubmit=e=>{e.preventDefault();createListing(e.target)};const photoInput=$('#carPhotoInput'),preview=$('#photoPreview');photoInput.onchange=()=>{const files=[...photoInput.files];preview.innerHTML='';if(files.length>12){toast('Maximum 12 photos per car.');photoInput.value='';return}files.forEach((file,i)=>{if(!file.type.startsWith('image/')||file.size>10*1024*1024)return;const box=document.createElement('div');box.className='photo-upload-item';const img=document.createElement('img');img.alt='Car photo '+(i+1);img.src=URL.createObjectURL(file);box.appendChild(img);const n=document.createElement('span');n.textContent=(i+1);box.appendChild(n);preview.appendChild(box)})};
+ $('#sellForm').onsubmit=e=>{e.preventDefault();createListing(e.target)};
+ const photoInput=$('#carPhotoInput'),preview=$('#photoPreview');
+ const renderSelectedPhotos=()=>{
+   const files=[...photoInput.files];preview.innerHTML='';
+   files.forEach((file,i)=>{
+     const box=document.createElement('div');box.className='photo-upload-item';
+     const img=document.createElement('img');img.alt='Car photo '+(i+1);img.src=URL.createObjectURL(file);box.appendChild(img);
+     const n=document.createElement('span');n.textContent=(i+1);box.appendChild(n);
+     const remove=document.createElement('button');remove.type='button';remove.className='photo-remove-btn';remove.textContent='×';remove.title='Remove this photo';remove.dataset.photoIndex=i;box.appendChild(remove);
+     preview.appendChild(box);
+   });
+ };
+ photoInput.onchange=()=>{
+   const files=[...photoInput.files];
+   if(files.length>12){toast('Maximum 12 photos per car.');photoInput.value='';renderSelectedPhotos();return}
+   const invalid=files.find(file=>!file.type.startsWith('image/'));
+   if(invalid){toast('Only image files are allowed.');photoInput.value='';renderSelectedPhotos();return}
+   const oversized=files.find(file=>file.size>10*1024*1024);
+   if(oversized){toast('Each photo must be 10 MB or smaller.');photoInput.value='';renderSelectedPhotos();return}
+   renderSelectedPhotos();
+ };
+ preview.onclick=e=>{
+   const b=e.target.closest('[data-photo-index]');if(!b)return;
+   const index=Number(b.dataset.photoIndex),files=[...photoInput.files];
+   files.splice(index,1);
+   const dt=new DataTransfer();files.forEach(file=>dt.items.add(file));
+   photoInput.files=dt.files;renderSelectedPhotos();
+ };
 }
 async function openAccount(){
  if(!authUser)return authModal('login');
@@ -208,12 +235,14 @@ async function loadDealerDashboard(){
     <textarea name="description" required placeholder="Business description, brands/services, opening information, and customer service details">${existing.description||''}</textarea>
     <label class="file-label">Dealer logo <input id="dealerLogoInput" name="logo" type="file" accept="image/png,image/jpeg,image/webp"></label>
     <small class="muted">Use a clear PNG/JPG/WebP logo. Maximum 5 MB.</small>
-    ${existing.logo_url?'<img class="dealer-logo-preview" src="'+existing.logo_url+'" alt="Current dealer logo">':''}
+    ${existing.logo_url?'<div class="dealer-logo-current"><img class="dealer-logo-preview" src="'+existing.logo_url+'" alt="Current dealer logo"><label><input name="remove_logo" type="checkbox"> Remove current logo</label></div>':''}
+    <div id="dealerLogoPreview" class="photo-upload-preview"></div>
     <button class="btn primary" type="submit">${existing.id?'Save Dealer Information':'Create Dealer Profile'}</button>
   </form>`;
 
   if(!dealer){
     openModal(dealerForm());
+    bindDealerLogoPreview();
     $('#dealerForm').onsubmit=async e=>{
       e.preventDefault();await saveDealerProfile(e.target,null);
     };
@@ -234,7 +263,7 @@ async function loadDealerDashboard(){
   <div class="stats"><div><strong>${active}</strong><small>Active Listings</small></div><div><strong>${leads.length}</strong><small>Leads</small></div><div><strong>${sold}</strong><small>Sold</small></div></div>
   <p class="muted">Pending review: ${pending} · Total listings: ${cars.length}</p>
   <div class="listing-actions"><button id="editDealerBtn" class="btn primary">Edit Dealer Information</button></div><hr><h3>My Dealer Listings</h3><div>${list}</div><hr><h3>Recent Leads</h3><div>${leadRows}</div>`);
-  $('#editDealerBtn').onclick=()=>{openModal(dealerForm(dealer));$('#dealerForm').onsubmit=async e=>saveDealerProfile(e.target,dealer)};
+  $('#editDealerBtn').onclick=()=>{openModal(dealerForm(dealer));bindDealerLogoPreview();$('#dealerForm').onsubmit=async e=>saveDealerProfile(e.target,dealer)};
   $$('[data-sold]').forEach(b=>b.onclick=()=>markSold(b.dataset.sold));
   $$('[data-delete-sold]').forEach(b=>b.onclick=()=>deleteSoldCar(b.dataset.deleteSold));
   const a=$('#dealerActiveCount'),l=$('#dealerLeadCount'),s=$('#dealerSoldCount'),preview=$('#dealerPreviewList');
@@ -242,12 +271,37 @@ async function loadDealerDashboard(){
   if(preview)preview.innerHTML=cars.length?cars.slice(0,3).map(c=>`<span>🚙 ${c.make} ${c.model} <b>${money(c.price)}</b></span>`).join(''):'<span>No dealer listings yet.</span>';
 }
 
+function bindDealerLogoPreview(){
+  const input=$('#dealerLogoInput'),preview=$('#dealerLogoPreview');
+  if(!input||!preview)return;
+  input.onchange=()=>{
+    preview.innerHTML='';
+    const file=input.files?.[0];
+    if(!file)return;
+    if(!file.type.startsWith('image/')){toast('Only image files are allowed.');input.value='';return}
+    if(file.size>5*1024*1024){toast('Dealer logo must be 5 MB or smaller.');input.value='';return}
+    const box=document.createElement('div');box.className='photo-upload-item';
+    const img=document.createElement('img');img.alt='New dealer logo preview';img.src=URL.createObjectURL(file);box.appendChild(img);
+    const n=document.createElement('span');n.textContent='New';box.appendChild(n);
+    preview.appendChild(box);
+  };
+}
+function dealerStoragePathFromUrl(url){
+  if(!url)return null;
+  const marker='/storage/v1/object/public/dealer-assets/';
+  const i=url.indexOf(marker);
+  return i>=0?decodeURIComponent(url.slice(i+marker.length)):null;
+}
+
 async function saveDealerProfile(form,existing){
   const f=new FormData(form),btn=form.querySelector('button[type=submit]');btn.disabled=true;btn.textContent='Saving…';
   try{
-    let logoUrl=existing?.logo_url||null;
+    const oldLogoUrl=existing?.logo_url||null;
+    const removeLogo=f.get('remove_logo')==='on';
+    let logoUrl=removeLogo?null:oldLogoUrl;
     const logo=f.get('logo');
     if(logo instanceof File && logo.size){
+      if(!logo.type.startsWith('image/'))throw new Error('Only image files are allowed.');
       if(logo.size>5*1024*1024)throw new Error('Dealer logo must be 5 MB or smaller.');
       const path=`${authUser.id}/logo-${Date.now()}-${logo.name.toLowerCase().replace(/[^a-z0-9._-]/g,'-')}`;
       const up=await supabaseClient.storage.from('dealer-assets').upload(path,logo,{upsert:false,contentType:logo.type});
@@ -257,9 +311,17 @@ async function saveDealerProfile(form,existing){
     const payload={p_business_name:String(f.get('business_name')||''),p_phone:String(f.get('phone')||''),p_whatsapp:String(f.get('whatsapp')||''),p_email:String(f.get('email')||''),p_location:String(f.get('location')||''),p_description:String(f.get('description')||''),p_logo_url:logoUrl};
     const {error}=await supabaseClient.rpc('upsert_my_dealer_profile',payload);
     if(error)throw error;
+    if(oldLogoUrl && (removeLogo || (logo instanceof File && logo.size))){
+      const oldPath=dealerStoragePathFromUrl(oldLogoUrl);
+      if(oldPath){
+        const removed=await supabaseClient.storage.from('dealer-assets').remove([oldPath]);
+        if(removed.error)console.warn('Old dealer logo cleanup failed:',removed.error.message);
+      }
+    }
     const {data:dealerRow}=await supabaseClient.from('dealers').select('id').eq('owner_id',authUser.id).maybeSingle();
     if(dealerRow?.id)await supabaseClient.from('cars').update({dealer_id:dealerRow.id}).eq('seller_id',authUser.id);
-    toast('Dealer information saved');await loadDealerDashboard();
+    toast(removeLogo?'Dealer logo removed and information saved':(logo instanceof File && logo.size?'Dealer logo replaced and information saved':'Dealer information saved'));
+    await loadDealerDashboard();
   }catch(err){toast(err.message||'Could not save dealer profile')}finally{btn.disabled=false;btn.textContent=existing?'Save Dealer Information':'Create Dealer Profile'}
 }
 

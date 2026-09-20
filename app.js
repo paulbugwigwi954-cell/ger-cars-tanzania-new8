@@ -186,8 +186,12 @@ $('#searchBtn').onclick=applyFilters;$('#sortSelect').onchange=()=>{sortCars();r
 navCounts();renderCars();renderFavs();renderCompare();monthly();loadCars();updateAuthUI();['loanPrice','loanDeposit','loanYears','loanRate'].forEach(id=>$('#'+id).oninput=monthly);
 
 async function loadDealerDashboard(){
+  const {data:sessionData}=await supabaseClient.auth.getSession();
+  authUser=sessionData?.session?.user||authUser;
   if(!authUser){authModal('login');return}
-  await loadProfile();
+  const {data:adminProfile,error:profileError}=await supabaseClient.from('profiles').select('id,full_name,phone,role').eq('id',authUser.id).maybeSingle();
+  if(profileError){toast(profileError.message||'Could not load account permissions');return}
+  profile=adminProfile||profile;
   if(profile?.role!=='admin'){toast('Dealer Dashboard is restricted to admin only.');return}
 
   const {data:dealer,error:dealerError}=await supabaseClient.from('dealers').select('*').eq('owner_id',authUser.id).maybeSingle();
@@ -257,4 +261,7 @@ async function saveDealerProfile(form,existing){
   }catch(err){toast(err.message||'Could not save dealer profile')}finally{btn.disabled=false;btn.textContent=existing?'Save Dealer Information':'Create Dealer Profile'}
 }
 
-if($('#dealerDashboardBtn'))$('#dealerDashboardBtn').onclick=loadDealerDashboard;
+document.addEventListener('click',e=>{
+  const b=e.target.closest('#dealerDashboardBtn');
+  if(b){e.preventDefault();loadDealerDashboard();}
+});

@@ -1,11 +1,3 @@
-const FALLBACK_CARS=[
-{id:'11111111-1111-4111-8111-111111111111',make:'Toyota',model:'Harrier Z',year:2022,price:78000000,mileage:42000,condition:'Used',location:'Dar es Salaam',fuel:'Petrol',transmission:'Automatic',body:'SUV',featured:true,seller:'GER Verified Seller'},
-{id:'22222222-2222-4222-8222-222222222222',make:'Mazda',model:'CX-5',year:2023,price:62000000,mileage:28000,condition:'Used',location:'Dar es Salaam',fuel:'Petrol',transmission:'Automatic',body:'SUV',featured:true,seller:'GER Verified Seller'},
-{id:'33333333-3333-4333-8333-333333333333',make:'Toyota',model:'Hilux',year:2024,price:96000000,mileage:12000,condition:'New',location:'Arusha',fuel:'Diesel',transmission:'Automatic',body:'Pickup',featured:true,seller:'GER Verified Seller'},
-{id:'44444444-4444-4444-8444-444444444444',make:'Mercedes-Benz',model:'C200',year:2021,price:115000000,mileage:35000,condition:'Used',location:'Dar es Salaam',fuel:'Petrol',transmission:'Automatic',body:'Sedan',seller:'GER Verified Seller'},
-{id:'55555555-5555-4555-8555-555555555555',make:'BMW',model:'X3 xDrive20i',year:2023,price:145000000,mileage:18000,condition:'Used',location:'Dar es Salaam',fuel:'Petrol',transmission:'Automatic',body:'SUV',seller:'GER Verified Seller'},
-{id:'66666666-6666-4666-8666-666666666666',make:'Honda',model:'Fit Hybrid',year:2022,price:36500000,mileage:39000,condition:'Used',location:'Mwanza',fuel:'Hybrid',transmission:'Automatic',body:'Hatchback',seller:'GER Verified Seller'}
-];
 const $=s=>document.querySelector(s);const $$=s=>[...document.querySelectorAll(s)];
 
 const PHOTO_SETS={
@@ -22,12 +14,12 @@ function photoSet(c){
   if(key.includes('suv')) return (String(c.make||'').toLowerCase().includes('bmw')||String(c.make||'').toLowerCase().includes('mercedes'))?PHOTO_SETS.crossover:PHOTO_SETS.suv;
   return PHOTO_SETS.suv;
 }
-function carImages(c){if(CAR_PHOTOS[c.id]?.length)return CAR_PHOTOS[c.id];const base=photoSet(c);return [1,2,3,4].map(n=>base+n+'.jpg')}
+function carImages(c){if(CAR_PHOTOS[c.id]?.length)return CAR_PHOTOS[c.id];return ['/assets/placeholder-car.svg']}
 
 const SUPABASE_URL='https://rbitwptbmwhsvezdkhlk.supabase.co';
 const SUPABASE_KEY='sb_publishable_akmd2h4AAq5UD3HOlpQm3g_m_AL3Rxd';
 const supabaseClient=window.supabase?.createClient(SUPABASE_URL,SUPABASE_KEY);
-let authUser=null, profile=null, CARS=[...FALLBACK_CARS], current=[...FALLBACK_CARS];
+let authUser=null, profile=null, CARS=[], current=[];
 let CAR_PHOTOS={};
 let favourites=JSON.parse(localStorage.getItem('ger_favourites')||'[]');
 let compare=JSON.parse(localStorage.getItem('ger_compare')||'[]');

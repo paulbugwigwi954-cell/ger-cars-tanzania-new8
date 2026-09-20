@@ -14,7 +14,7 @@ function photoSet(c){
   if(key.includes('suv')) return (String(c.make||'').toLowerCase().includes('bmw')||String(c.make||'').toLowerCase().includes('mercedes'))?PHOTO_SETS.crossover:PHOTO_SETS.suv;
   return PHOTO_SETS.suv;
 }
-function carImages(c){if(CAR_PHOTOS[c.id]?.length)return CAR_PHOTOS[c.id];return ['/assets/placeholder-car.svg']}
+function carImages(c){return CAR_PHOTOS[c.id]?.length?CAR_PHOTOS[c.id]:[]}
 
 const SUPABASE_URL='https://rbitwptbmwhsvezdkhlk.supabase.co';
 const SUPABASE_KEY='sb_publishable_akmd2h4AAq5UD3HOlpQm3g_m_AL3Rxd';
@@ -27,7 +27,7 @@ function money(n){return 'TZS '+Number(n||0).toLocaleString('en-TZ')}
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(window.tt);window.tt=setTimeout(()=>t.classList.remove('show'),2500)}
 function navCounts(){$('#compareCount').textContent=compare.length}
 function syncCompareWithCars(){const valid=new Set(CARS.map(c=>c.id));compare=compare.filter(id=>valid.has(id));navCounts();renderCompare();}
-function carCard(c){const fav=favourites.includes(c.id),cmp=compare.includes(c.id),imgs=carImages(c);return `<article class="car-card"><div class="car-photo"><img class="car-main-image" data-main-image="${c.id}" src="${imgs[0]}" alt="${c.make} ${c.model}" loading="lazy"><span class="badge">${c.featured?'FEATURED':'GER VERIFIED'}</span><button class="fav ${fav?'active':''}" data-fav="${c.id}" aria-label="Favourite">${fav?'♥':'♡'}</button></div><div class="photo-strip">${imgs.map((src,i)=>`<button class="photo-thumb ${i===0?'active':''}" data-photo-target="${c.id}" data-photo="${src}"><img src="${src}" alt="${c.make} ${c.model} photo ${i+1}" loading="lazy"></button>`).join('')}<span class="photo-count">${imgs.length} photos</span></div><div class="car-info"><div class="car-title"><h3>${c.make} ${c.model}</h3><span class="price">${money(c.price)}</span></div><div class="meta"><span>${c.year}</span><span>${Number(c.mileage||0).toLocaleString()} KM</span><span>${c.transmission||'—'}</span><span>${c.fuel||'—'}</span><span>${c.location||'—'}</span></div><div class="card-actions"><button class="btn ghost" data-detail="${c.id}">View Details</button><button class="btn compare-btn" data-compare="${c.id}">${cmp?'✓ Compared':'Compare'}</button></div></div></article>`}
+function carCard(c){const fav=favourites.includes(c.id),cmp=compare.includes(c.id),imgs=carImages(c);if(!imgs.length)return '';return `<article class="car-card"><div class="car-photo"><img class="car-main-image" data-main-image="${c.id}" src="${imgs[0]}" alt="${c.make} ${c.model}" loading="lazy"><span class="badge">${c.featured?'FEATURED':'GER VERIFIED'}</span><button class="fav ${fav?'active':''}" data-fav="${c.id}" aria-label="Favourite">${fav?'♥':'♡'}</button></div><div class="photo-strip">${imgs.map((src,i)=>`<button class="photo-thumb ${i===0?'active':''}" data-photo-target="${c.id}" data-photo="${src}"><img src="${src}" alt="${c.make} ${c.model} photo ${i+1}" loading="lazy"></button>`).join('')}<span class="photo-count">${imgs.length} photos</span></div><div class="car-info"><div class="car-title"><h3>${c.make} ${c.model}</h3><span class="price">${money(c.price)}</span></div><div class="meta"><span>${c.year}</span><span>${Number(c.mileage||0).toLocaleString()} KM</span><span>${c.transmission||'—'}</span><span>${c.fuel||'—'}</span><span>${c.location||'—'}</span></div><div class="card-actions"><button class="btn ghost" data-detail="${c.id}">View Details</button><button class="btn compare-btn" data-compare="${c.id}">${cmp?'✓ Compared':'Compare'}</button></div></div></article>`}
 function renderCars(){const grid=$('#carGrid');grid.innerHTML=current.map(carCard).join('');$('#emptyState').hidden=current.length>0;bindCards()}
 function renderFavs(){const grid=$('#favGrid');const arr=CARS.filter(c=>favourites.includes(c.id));grid.innerHTML=arr.map(carCard).join('');$('#favEmpty').style.display=arr.length?'none':'block';bindCards()}
 async function toggleFavourite(id){
@@ -63,11 +63,13 @@ async function loadCarPhotos(){
  if(!supabaseClient || !CARS.length)return;
  const ids=CARS.map(c=>c.id);
  const {data,error}=await supabaseClient.from('car_images').select('car_id,public_url,sort_order').in('car_id',ids).order('sort_order',{ascending:true});
- if(!error && data?.length){
-   CAR_PHOTOS={};
-   data.forEach(x=>{if(x.public_url){(CAR_PHOTOS[x.car_id] ||= []).push(x.public_url)}});
-   renderCars();renderFavs();renderCompare();
- }
+ if(error){toast(error.message);return}
+ CAR_PHOTOS={};
+ (data||[]).forEach(x=>{if(x.public_url){(CAR_PHOTOS[x.car_id] ||= []).push(x.public_url)}});
+ // Never display a vehicle with no real uploaded photo.
+ CARS=CARS.filter(c=>CAR_PHOTOS[c.id]?.length);
+ current=current.filter(c=>CAR_PHOTOS[c.id]?.length);
+ renderCars();renderFavs();renderCompare();
 }
 async function createListing(form){
  if(!authUser)return authModal('login');
@@ -115,14 +117,34 @@ async function deleteSoldCar(id){
  try{
    const {data:imgs}=await supabaseClient.from('car_images').select('storage_path').eq('car_id',id);
    const paths=(imgs||[]).map(x=>x.storage_path).filter(Boolean);
-   if(paths.length)await supabaseClient.storage.from('car-images').remove(paths);
-   await supabaseClient.from('car_images').delete().eq('car_id',id);
-   await supabaseClient.from('favourites').delete().eq('car_id',id);
-   await supabaseClient.from('comparisons').delete().eq('car_id',id);
-   await supabaseClient.from('enquiries').delete().eq('car_id',id);
+   if(paths.length){
+     const storageResult=await supabaseClient.storage.from('car-images').remove(paths);
+     if(storageResult.error)throw storageResult.error;
+   }
+   const imageDelete=await supabaseClient.from('car_images').delete().eq('car_id',id);
+   if(imageDelete.error)throw imageDelete.error;
+   const favDelete=await supabaseClient.from('favourites').delete().eq('car_id',id);
+   if(favDelete.error)console.warn('Favourite cleanup:',favDelete.error.message);
+   const compareDelete=await supabaseClient.from('comparisons').delete().eq('car_id',id);
+   if(compareDelete.error)console.warn('Comparison cleanup:',compareDelete.error.message);
+   const enquiryDelete=await supabaseClient.from('enquiries').delete().eq('car_id',id);
+   if(enquiryDelete.error)console.warn('Enquiry cleanup:',enquiryDelete.error.message);
    const {data,error}=await supabaseClient.rpc('seller_delete_sold_car',{p_car_id:id});
    if(error)throw error;
-   delete CAR_PHOTOS[id];CARS=CARS.filter(c=>c.id!==id);current=current.filter(c=>c.id!==id);delete favourites[id];renderCars();renderFavs();renderCompare();toast('Sold car deleted successfully');await loadCars();await openAccount();
+   if(!data)throw new Error('The car could not be deleted.');
+   const {data:stillThere,error:verifyError}=await supabaseClient.from('cars').select('id').eq('id',id).maybeSingle();
+   if(verifyError)throw verifyError;
+   if(stillThere)throw new Error('The car is still in the database and was not deleted.');
+   delete CAR_PHOTOS[id];
+   CARS=CARS.filter(c=>c.id!==id);
+   current=current.filter(c=>c.id!==id);
+   favourites=favourites.filter(x=>x!==id);
+   compare=compare.filter(x=>x!==id);
+   localStorage.setItem('ger_favourites',JSON.stringify(favourites));
+   navCounts();renderCars();renderFavs();renderCompare();
+   toast('Sold car deleted permanently');
+   await loadCars();
+   await openAccount();
  }catch(err){toast(err.message||'Could not delete sold car')}
 }
 function openSell(){

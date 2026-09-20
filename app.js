@@ -88,15 +88,25 @@ async function createListing(form){
    const {data:car,error}=await supabaseClient.from('cars').insert({seller_id:authUser.id,title:`${make} ${model}`,make,model,year:Number(fd.get('year')||0),condition:String(fd.get('condition')||'used').toLowerCase(),price:Number(fd.get('price')||0),location:String(fd.get('location')||''),mileage:Number(fd.get('mileage')||0),fuel_type:String(fd.get('fuel_type')||''),transmission:String(fd.get('transmission')||''),body_type:String(fd.get('body_type')||''),description:String(fd.get('description')||''),engine_cc:Number(fd.get('engine_cc')||0)||null,drive_type:String(fd.get('drive_type')||''),doors:Number(fd.get('doors')||0)||null,seats:Number(fd.get('seats')||0)||null,exterior_color:String(fd.get('exterior_color')||''),interior_color:String(fd.get('interior_color')||''),registration_year:Number(fd.get('registration_year')||0)||null,import_year:Number(fd.get('import_year')||0)||null,ownership:String(fd.get('ownership')||''),service_history:String(fd.get('service_history')||''),accident_history:String(fd.get('accident_history')||''),condition_notes:String(fd.get('condition_notes')||''),features:String(fd.get('features')||''),documents:String(fd.get('documents')||''),warranty:String(fd.get('warranty')||''),negotiable:fd.get('negotiable')==='on',status:'pending_review',verified:false,featured:false}).select().single();
    if(error)throw error;
    const uploaded=[];
-   for(let i=0;i<files.length;i++){
-     const file=files[i];
-     const safe=file.name.toLowerCase().replace(/[^a-z0-9._-]/g,'-');
-     const path=`${authUser.id}/${car.id}/${Date.now()}-${i}-${safe}`;
-     const up=await supabaseClient.storage.from('car-images').upload(path,file,{upsert:false,contentType:file.type||'image/jpeg'});
-     if(up.error)throw up.error;
-     const url=supabaseClient.storage.from('car-images').getPublicUrl(path).data.publicUrl;
-     const ins=await supabaseClient.from('car_images').insert({car_id:car.id,storage_path:path,public_url:url,sort_order:i});
-     if(ins.error)throw ins.error; uploaded.push(url);
+   const uploadedPaths=[];
+   try{
+     for(let i=0;i<files.length;i++){
+       const file=files[i];
+       const safe=file.name.toLowerCase().replace(/[^a-z0-9._-]/g,'-');
+       const path=authUser.id+'/'+car.id+'/'+Date.now()+'-'+i+'-'+safe;
+       const up=await supabaseClient.storage.from('car-images').upload(path,file,{upsert:false,contentType:file.type||'image/jpeg'});
+       if(up.error)throw up.error;
+       uploadedPaths.push(path);
+       const url=supabaseClient.storage.from('car-images').getPublicUrl(path).data.publicUrl;
+       const ins=await supabaseClient.from('car_images').insert({car_id:car.id,storage_path:path,public_url:url,sort_order:i});
+       if(ins.error)throw ins.error;
+       uploaded.push(url);
+     }
+   }catch(uploadErr){
+     if(uploadedPaths.length)await supabaseClient.storage.from('car-images').remove(uploadedPaths);
+     await supabaseClient.from('car_images').delete().eq('car_id',car.id);
+     await supabaseClient.from('cars').delete().eq('id',car.id).eq('seller_id',authUser.id);
+     throw uploadErr;
    }
    closeModal();toast('Car submitted successfully. It is pending review before publication.');
    await loadMyListings();

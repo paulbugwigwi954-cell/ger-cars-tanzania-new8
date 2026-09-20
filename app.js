@@ -102,16 +102,20 @@ async function createListing(form){
  if(!authUser)return authModal('login');
  const fd=new FormData(form);const btn=form.querySelector('button[type=submit]');btn.disabled=true;btn.textContent='Uploading…';
  try{
+   const mediaChoice=fd.get('mediaChoice')==='video'?'video':'photos';
    const fileInput=form.querySelector('#carPhotoInput');
    const files=[...fileInput.files];
    const videoInput=form.querySelector('#carVideoInput');
    const videoFile=videoInput?.files?.[0]||null;
-   if(!files.length)throw new Error('Please select at least one car photo.');
-   if(files.length>12)throw new Error('You can upload up to 12 photos per car.');
+   if(mediaChoice==='photos' && !files.length)throw new Error('Please select at least one car photo.');
+   if(mediaChoice==='video' && !videoFile)throw new Error('Please select one vehicle video.');
+   if(mediaChoice==='photos' && files.length>12)throw new Error('You can upload up to 12 photos per car.');
    const invalid=files.find(file=>!file.type.startsWith('image/'));
-   if(invalid)throw new Error('Only image files are allowed.');
+   if(mediaChoice==='photos' && invalid)throw new Error('Only image files are allowed.');
    const oversized=files.find(file=>file.size>10*1024*1024);
-   if(oversized)throw new Error('Each photo must be 10 MB or smaller.');
+   if(mediaChoice==='photos' && oversized)throw new Error('Each photo must be 10 MB or smaller.');
+   if(mediaChoice==='photos' && videoFile)throw new Error('Choose either photos or video, not both.');
+   if(mediaChoice==='video' && files.length)throw new Error('Choose either video or photos, not both.');
    if(videoFile){if(!['video/mp4','video/webm','video/quicktime','video/x-m4v'].includes(videoFile.type))throw new Error('Video must be MP4, WebM or MOV.');if(videoFile.size>100*1024*1024)throw new Error('Video must be 100 MB or smaller.');const duration=await getVideoDuration(videoFile);if(!Number.isFinite(duration)||duration>60.5)throw new Error('Dealer video must not exceed 1 minute.');}
    const make=String(fd.get('make')||'').trim(),model=String(fd.get('model')||'').trim();
    if(!make||!model)throw new Error('Make and model are required.');

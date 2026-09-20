@@ -166,32 +166,69 @@ async function loadDealerDashboard(){
   await loadProfile();
   const {data:dealer,error:dealerError}=await supabaseClient.from('dealers').select('*').eq('owner_id',authUser.id).maybeSingle();
   if(dealerError){toast(dealerError.message);return}
+
+  const dealerForm=(existing={})=>`<span class="eyebrow">DEALER PROFILE</span><h2>${existing.id?'Manage':'Create'} Dealer Profile</h2>
+  <p class="muted">Complete your official dealer information. Your profile can be shown to customers while verification remains controlled by GER Cars Tanzania.</p>
+  <form id="dealerForm" class="contact-form">
+    <div class="form-row"><input name="business_name" required placeholder="Registered business / dealer name" value="${existing.business_name||''}"><input name="phone" required placeholder="Business phone" value="${existing.phone||profile?.phone||''}"></div>
+    <div class="form-row"><input name="whatsapp" placeholder="WhatsApp number" value="${existing.whatsapp||profile?.phone||''}"><input name="email" type="email" required placeholder="Business email" value="${existing.email||authUser.email||''}"></div>
+    <input name="location" required placeholder="Full business location / showroom address" value="${existing.location||''}">
+    <textarea name="description" required placeholder="Business description, brands/services, opening information, and customer service details">${existing.description||''}</textarea>
+    <label class="file-label">Dealer logo <input id="dealerLogoInput" name="logo" type="file" accept="image/png,image/jpeg,image/webp"></label>
+    <small class="muted">Use a clear PNG/JPG/WebP logo. Maximum 5 MB.</small>
+    ${existing.logo_url?'<img class="dealer-logo-preview" src="'+existing.logo_url+'" alt="Current dealer logo">':''}
+    <button class="btn primary" type="submit">${existing.id?'Save Dealer Information':'Create Dealer Profile'}</button>
+  </form>`;
+
   if(!dealer){
-    openModal(`<span class="eyebrow">DEALER PROFILE</span><h2>Create your dealer profile</h2><p>No dealer profile is linked to this account yet. The dashboard will only show listings and leads belonging to this account.</p><form id="dealerForm" class="contact-form"><input name="business_name" required placeholder="Business / Dealer name"><input name="phone" placeholder="Phone number" value="${profile?.phone||''}"><input name="whatsapp" placeholder="WhatsApp number" value="${profile?.phone||''}"><input name="email" type="email" placeholder="Business email" value="${authUser.email||''}"><input name="location" placeholder="Location"><textarea name="description" placeholder="Short business description"></textarea><button class="btn primary" type="submit">Create Dealer Profile</button></form>`);
+    openModal(dealerForm());
     $('#dealerForm').onsubmit=async e=>{
-      e.preventDefault();const f=new FormData(e.target);const btn=e.target.querySelector('button');btn.disabled=true;
-      try{
-        const {error}=await supabaseClient.rpc('upsert_my_dealer_profile',{p_business_name:String(f.get('business_name')||''),p_phone:String(f.get('phone')||''),p_whatsapp:String(f.get('whatsapp')||''),p_email:String(f.get('email')||authUser.email||''),p_location:String(f.get('location')||''),p_description:String(f.get('description')||''),p_logo_url:null});
-        if(error)throw error;
-        const {data:dealerRow}=await supabaseClient.from('dealers').select('id').eq('owner_id',authUser.id).maybeSingle();
-        if(dealerRow?.id){await supabaseClient.from('cars').update({dealer_id:dealerRow.id}).eq('seller_id',authUser.id);}
-        closeModal();toast('Dealer profile created and your listings were linked');await loadDealerDashboard();
-      }catch(err){toast(err.message||'Could not create dealer profile')}finally{btn.disabled=false}
-    };return;
+      e.preventDefault();await saveDealerProfile(e.target,null);
+    };
+    return;
   }
 
   const {data:cars=[],error:carsError}=await supabaseClient.from('cars').select('id,listing_id,make,model,year,price,status,location,created_at,dealer_id,seller_id').or(`dealer_id.eq.${dealer.id},seller_id.eq.${authUser.id}`).order('created_at',{ascending:false});
   if(carsError){toast(carsError.message);return}
   const ids=cars.map(c=>c.id);
   let leads=[];
-  if(ids.length){const r=await supabaseClient.from('enquiries').select('id,car_id,customer_name,status,created_at').in('car_id',ids).order('created_at',{ascending:false});if(!r.error)leads=r.data||[];}
+  if(ids.length){const r=await supabaseClient.from('enquiries').select('id,car_id,customer_name,status,created_at').in('car_id',ids).order('created_at',{ascending:false});if(!r.error)leads=r.data||[]}
   const {data:stats,error:statsError}=await supabaseClient.rpc('dealer_dashboard_stats');
   if(statsError){toast(statsError.message);return}
   const active=Number(stats?.active_listings||0),sold=Number(stats?.sold_listings||0),pending=Number(stats?.pending_listings||0);
-  const list=cars.length?cars.slice(0,10).map(c=>`<div class="my-listing-row"><div><b>${c.make} ${c.model}</b><br><small>${c.listing_id||'No Listing ID'} · ${money(c.price)} · ${c.location||'—'} · <strong>${c.status}</strong></small></div><span class="muted">${c.year||'—'}</span></div>`).join(''):'<p>No dealer listings yet.</p>';
+  const list=cars.length?cars.slice(0,20).map(c=>`<div class="my-listing-row"><div><b>${c.make} ${c.model}</b><br><small>${c.listing_id||'No Listing ID'} · ${money(c.price)} · ${c.location||'—'} · <strong>${c.status}</strong></small></div><div class="listing-actions">${c.status==='active'?'<button class="btn ghost" data-sold="'+c.id+'">Mark Sold</button>':''}${c.status==='sold'?'<button class="btn danger" data-delete-sold="'+c.id+'">Delete Sold Car</button>':''}</div></div>`).join(''):'<p>No dealer listings yet.</p>';
   const leadRows=leads.length?leads.slice(0,10).map(e=>`<div style="padding:10px 0;border-bottom:1px solid #ddd"><b>${e.customer_name||'Customer'}</b><br><small>${e.status||'new'} · ${new Date(e.created_at).toLocaleString()}</small></div>`).join(''):'<p>No leads yet.</p>';
-  openModal(`<span class="eyebrow">DEALER DASHBOARD</span><h2>${dealer.business_name||'Dealer'}</h2><p>${dealer.location||''} ${dealer.verified?'· ✓ Verified':''}</p><div class="stats"><div><strong>${active}</strong><small>Active Listings</small></div><div><strong>${leads.length}</strong><small>Leads</small></div><div><strong>${sold}</strong><small>Sold</small></div></div><p class="muted">Pending review: ${pending} · Total listings: ${cars.length}</p><hr><h3>My Dealer Listings</h3><div>${list}</div><hr><h3>Recent Leads</h3><div>${leadRows}</div>`);
-  const a=$('#dealerActiveCount'),l=$('#dealerLeadCount'),s=$('#dealerSoldCount'),preview=$('#dealerPreviewList');if(a)a.textContent=active;if(l)l.textContent=leads.length;if(s)s.textContent=sold;if(preview)preview.innerHTML=cars.length?cars.slice(0,3).map(c=>`<span>🚙 ${c.make} ${c.model} <b>${money(c.price)}</b></span>`).join(''):'<span>No dealer listings yet.</span>';
+  openModal(`<span class="eyebrow">DEALER DASHBOARD</span><div class="dealer-heading">${dealer.logo_url?'<img src="'+dealer.logo_url+'" alt="Dealer logo">':''}<div><h2>${dealer.business_name||'Dealer'}</h2><p>${dealer.location||''} ${dealer.verified?'· ✓ Verified':''}</p></div></div>
+  <div class="stats"><div><strong>${active}</strong><small>Active Listings</small></div><div><strong>${leads.length}</strong><small>Leads</small></div><div><strong>${sold}</strong><small>Sold</small></div></div>
+  <p class="muted">Pending review: ${pending} · Total listings: ${cars.length}</p>
+  <div class="listing-actions"><button id="editDealerBtn" class="btn primary">Edit Dealer Information</button></div><hr><h3>My Dealer Listings</h3><div>${list}</div><hr><h3>Recent Leads</h3><div>${leadRows}</div>`);
+  $('#editDealerBtn').onclick=()=>{openModal(dealerForm(dealer));$('#dealerForm').onsubmit=async e=>saveDealerProfile(e.target,dealer)};
+  $$('[data-sold]').forEach(b=>b.onclick=()=>markSold(b.dataset.sold));
+  $$('[data-delete-sold]').forEach(b=>b.onclick=()=>deleteSoldCar(b.dataset.deleteSold));
+  const a=$('#dealerActiveCount'),l=$('#dealerLeadCount'),s=$('#dealerSoldCount'),preview=$('#dealerPreviewList');
+  if(a)a.textContent=active;if(l)l.textContent=leads.length;if(s)s.textContent=sold;
+  if(preview)preview.innerHTML=cars.length?cars.slice(0,3).map(c=>`<span>🚙 ${c.make} ${c.model} <b>${money(c.price)}</b></span>`).join(''):'<span>No dealer listings yet.</span>';
+}
+
+async function saveDealerProfile(form,existing){
+  const f=new FormData(form),btn=form.querySelector('button[type=submit]');btn.disabled=true;btn.textContent='Saving…';
+  try{
+    let logoUrl=existing?.logo_url||null;
+    const logo=f.get('logo');
+    if(logo instanceof File && logo.size){
+      if(logo.size>5*1024*1024)throw new Error('Dealer logo must be 5 MB or smaller.');
+      const path=`${authUser.id}/logo-${Date.now()}-${logo.name.toLowerCase().replace(/[^a-z0-9._-]/g,'-')}`;
+      const up=await supabaseClient.storage.from('dealer-assets').upload(path,logo,{upsert:false,contentType:logo.type});
+      if(up.error)throw up.error;
+      logoUrl=supabaseClient.storage.from('dealer-assets').getPublicUrl(path).data.publicUrl;
+    }
+    const payload={p_business_name:String(f.get('business_name')||''),p_phone:String(f.get('phone')||''),p_whatsapp:String(f.get('whatsapp')||''),p_email:String(f.get('email')||''),p_location:String(f.get('location')||''),p_description:String(f.get('description')||''),p_logo_url:logoUrl};
+    const {error}=await supabaseClient.rpc('upsert_my_dealer_profile',payload);
+    if(error)throw error;
+    const {data:dealerRow}=await supabaseClient.from('dealers').select('id').eq('owner_id',authUser.id).maybeSingle();
+    if(dealerRow?.id)await supabaseClient.from('cars').update({dealer_id:dealerRow.id}).eq('seller_id',authUser.id);
+    toast('Dealer information saved');await loadDealerDashboard();
+  }catch(err){toast(err.message||'Could not save dealer profile')}finally{btn.disabled=false;btn.textContent=existing?'Save Dealer Information':'Create Dealer Profile'}
 }
 
 if($('#dealerDashboardBtn'))$('#dealerDashboardBtn').onclick=loadDealerDashboard;

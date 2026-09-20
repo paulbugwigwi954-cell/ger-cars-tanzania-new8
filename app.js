@@ -186,6 +186,7 @@ $('#searchBtn').onclick=applyFilters;$('#sortSelect').onchange=()=>{sortCars();r
 navCounts();renderCars();renderFavs();renderCompare();monthly();loadCars();updateAuthUI();['loanPrice','loanDeposit','loanYears','loanRate'].forEach(id=>$('#'+id).oninput=monthly);
 
 async function loadDealerDashboard(){
+  openModal('<span class="eyebrow">DEALER DASHBOARD</span><h2>Loading Dealer Dashboard…</h2><p class="muted">Checking your admin account and dealer information.</p>');
   const {data:sessionData}=await supabaseClient.auth.getSession();
   authUser=sessionData?.session?.user||authUser;
   if(!authUser){authModal('login');return}

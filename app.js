@@ -155,36 +155,31 @@ async function loadAdminReview(){
 
 async function updateAuthUI(){
  if(!supabaseClient)return;
- try{
-   const {data,error}=await supabaseClient.auth.getSession();
-   if(error)throw error;
-   authUser=data.session?.user||null;
-   const btn=$('#loginBtn');
-   if(authUser){
-     btn.textContent='My Account';
-     btn.onclick=openAccount;
-     await loadProfile();
-     await loadFavourites();
-   }else{
-     profile=null;
-     btn.textContent='Login';
-     btn.onclick=()=>authModal('login');
-     await loadFavourites();
-   }
- }catch(err){
-   console.error('Auth UI error:',err);
-   authUser=null;profile=null;
-   const btn=$('#loginBtn');
-   if(btn){btn.textContent='Login';btn.onclick=()=>authModal('login')}
+ const btn=$('#loginBtn');
+ const {data}=await supabaseClient.auth.getSession();
+ authUser=data?.session?.user||null;
+ if(authUser){
+   btn.textContent='My Account';
+   btn.onclick=()=>openAccount();
+   await loadProfile();
+   await loadFavourites();
+ }else{
+   profile=null;
+   btn.textContent='Login';
+   btn.onclick=()=>authModal('login');
+   await loadFavourites();
  }
 }
 if(supabaseClient){
  supabaseClient.auth.onAuthStateChange((event,session)=>{
-   setTimeout(async()=>{
-     authUser=session?.user||null;
-     await updateAuthUI();
-     if(event==='SIGNED_IN')toast('Login successful — My Account is ready.');
-   },0);
+   authUser=session?.user||null;
+   if(event==='SIGNED_OUT'){
+     profile=null;
+     const btn=$('#loginBtn');
+     if(btn){btn.textContent='Login';btn.onclick=()=>authModal('login');}
+   }else if(event==='SIGNED_IN' || event==='INITIAL_SESSION'){
+     setTimeout(()=>updateAuthUI(),50);
+   }
  });
 }
 $('#searchBtn').onclick=applyFilters;$('#sortSelect').onchange=()=>{sortCars();renderCars()};$('#clearBtn').onclick=()=>{$('#searchInput').value='';$('#makeFilter').value='';$('#conditionFilter').value='';$('#locationFilter').value='';applyFilters()};$$('[data-filter]').forEach(a=>a.onclick=()=>{setTimeout(()=>{$('#conditionFilter').value=a.dataset.filter;applyFilters()},0)});$$('[data-cat]').forEach(b=>b.onclick=()=>{const cat=b.dataset.cat;current=CARS.filter(c=>c.body===cat);renderCars();location.hash='cars'});$('#sellBtn').onclick=openSell;$('#modalClose').onclick=closeModal;$('#modal').onclick=e=>{if(e.target.id==='modal')closeModal()};$('#contactForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const {error}=await supabaseClient.from('enquiries').insert({customer_id:authUser?.id||null,customer_name:String(f.get('name')||''),customer_phone:String(f.get('phone')||''),customer_email:String(f.get('email')||authUser?.email||''),message:String(f.get('message')||''),channel:'website',status:'new'});if(error)toast(error.message);else{e.target.reset();toast('Enquiry sent successfully')}};$('#menuBtn').onclick=()=>$('#mainNav').classList.toggle('open');

@@ -27,7 +27,7 @@ function money(n){return 'TZS '+Number(n||0).toLocaleString('en-TZ')}
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(window.tt);window.tt=setTimeout(()=>t.classList.remove('show'),2500)}
 function navCounts(){$('#compareCount').textContent=compare.length}
 function syncCompareWithCars(){const valid=new Set(CARS.map(c=>c.id));compare=compare.filter(id=>valid.has(id));navCounts();renderCompare();}
-function carCard(c){const fav=favourites.includes(c.id),cmp=compare.includes(c.id),imgs=carImages(c);if(!imgs.length)return '';return `<article class="car-card"><div class="car-photo"><img class="car-main-image" data-main-image="${c.id}" src="${imgs[0]}" alt="${c.make} ${c.model}" loading="lazy"><span class="badge">${c.featured?'FEATURED':'GER VERIFIED'}</span><button class="fav ${fav?'active':''}" data-fav="${c.id}" aria-label="Favourite">${fav?'♥':'♡'}</button></div><div class="photo-strip">${imgs.map((src,i)=>`<button class="photo-thumb ${i===0?'active':''}" data-photo-target="${c.id}" data-photo="${src}"><img src="${src}" alt="${c.make} ${c.model} photo ${i+1}" loading="lazy"></button>`).join('')}<span class="photo-count">${imgs.length} photos</span></div><div class="car-info"><div class="car-title"><h3>${c.make} ${c.model}</h3><span class="price">${money(c.price)}</span></div><div class="meta"><span>${c.year}</span><span>${Number(c.mileage||0).toLocaleString()} KM</span><span>${c.transmission||'—'}</span><span>${c.fuel||'—'}</span><span>${c.location||'—'}</span></div><div class="card-actions"><button class="btn ghost" data-detail="${c.id}">View Details</button><button class="btn compare-btn" data-compare="${c.id}">${cmp?'✓ Compared':'Compare'}</button></div></div></article>`}
+function carCard(c){const fav=favourites.includes(c.id),cmp=compare.includes(c.id),imgs=carImages(c);return `<article class="car-card"><div class="car-photo"><img class="car-main-image" data-main-image="${c.id}" src="${imgs[0]}" alt="${c.make} ${c.model}" loading="lazy"><span class="badge">${c.featured?'FEATURED':'GER VERIFIED'}</span><button class="fav ${fav?'active':''}" data-fav="${c.id}" aria-label="Favourite">${fav?'♥':'♡'}</button></div><div class="photo-strip">${imgs.map((src,i)=>`<button class="photo-thumb ${i===0?'active':''}" data-photo-target="${c.id}" data-photo="${src}"><img src="${src}" alt="${c.make} ${c.model} photo ${i+1}" loading="lazy"></button>`).join('')}<span class="photo-count">${imgs.length} photos</span></div><div class="car-info"><div class="car-title"><h3>${c.make} ${c.model}</h3><span class="price">${money(c.price)}</span></div><div class="meta"><span>${c.year}</span><span>${Number(c.mileage||0).toLocaleString()} KM</span><span>${c.transmission||'—'}</span><span>${c.fuel||'—'}</span><span>${c.location||'—'}</span></div><div class="card-actions"><button class="btn ghost" data-detail="${c.id}">View Details</button><button class="btn compare-btn" data-compare="${c.id}">${cmp?'✓ Compared':'Compare'}</button></div></div></article>`}
 function renderCars(){const grid=$('#carGrid');grid.innerHTML=current.map(carCard).join('');$('#emptyState').hidden=current.length>0;bindCards()}
 function renderFavs(){const grid=$('#favGrid');const arr=CARS.filter(c=>favourites.includes(c.id));grid.innerHTML=arr.map(carCard).join('');$('#favEmpty').style.display=arr.length?'none':'block';bindCards()}
 async function toggleFavourite(id){
@@ -79,9 +79,8 @@ async function loadCarPhotos(){
    const urls=x.data.map(row=>String(row.public_url||'').trim()).filter(url=>/^https:\/\//i.test(url));
    if(urls.length)CAR_PHOTOS[x.id]=urls;
  });
- // Marketplace cards are published only when the dealer/seller has a real uploaded photo in car_images.
- CARS=CARS.filter(c=>CAR_PHOTOS[c.id]?.length);
- current=current.filter(c=>CAR_PHOTOS[c.id]?.length);
+ // Every active vehicle is shown. If it has dealer-uploaded photos, use only those real photos.
+ // Vehicles without photos remain visible but never receive a fake/default vehicle image.
  renderCars();renderFavs();renderCompare();
 }
 async function createListing(form){
@@ -374,3 +373,6 @@ document.addEventListener('click',e=>{
   const b=e.target.closest('#dealerDashboardBtn');
   if(b){e.preventDefault();loadDealerDashboard();}
 });
+
+
+

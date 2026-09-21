@@ -169,35 +169,21 @@ async function deleteSoldCar(id){
  if(!confirm('Delete this sold car permanently? This cannot be undone.'))return;
  try{
    const {data:imgs}=await supabaseClient.from('car_images').select('storage_path').eq('car_id',id);
-   const paths=(imgs||[]).map(x=>x.storage_path).filter(Boolean);
-   if(paths.length){
-     const storageResult=await supabaseClient.storage.from('car-images').remove(paths);
-     if(storageResult.error)throw storageResult.error;
-   }
-   const imageDelete=await supabaseClient.from('car_images').delete().eq('car_id',id);
-   if(imageDelete.error)throw imageDelete.error;
-   const favDelete=await supabaseClient.from('favourites').delete().eq('car_id',id);
-   if(favDelete.error)console.warn('Favourite cleanup:',favDelete.error.message);
-   const compareDelete=await supabaseClient.from('comparisons').delete().eq('car_id',id);
-   if(compareDelete.error)console.warn('Comparison cleanup:',compareDelete.error.message);
-   const enquiryDelete=await supabaseClient.from('enquiries').delete().eq('car_id',id);
-   if(enquiryDelete.error)console.warn('Enquiry cleanup:',enquiryDelete.error.message);
+   const {data:videos}=await supabaseClient.from('car_videos').select('storage_path').eq('car_id',id);
+   const imagePaths=(imgs||[]).map(x=>x.storage_path).filter(Boolean);
+   const videoPaths=(videos||[]).map(x=>x.storage_path).filter(Boolean);
    const {data,error}=await supabaseClient.rpc('seller_delete_sold_car',{p_car_id:id});
    if(error)throw error;
-   if(!data)throw new Error('The car could not be deleted.');
-   const {data:stillThere,error:verifyError}=await supabaseClient.from('cars').select('id').eq('id',id).maybeSingle();
-   if(verifyError)throw verifyError;
-   if(stillThere)throw new Error('The car is still in the database and was not deleted.');
-   delete CAR_PHOTOS[id];
-   CARS=CARS.filter(c=>c.id!==id);
-   current=current.filter(c=>c.id!==id);
-   favourites=favourites.filter(x=>x!==id);
-   compare=compare.filter(x=>x!==id);
+   if(data!==true)throw new Error('The car could not be deleted.');
+   if(imagePaths.length){const r=await supabaseClient.storage.from('car-images').remove(imagePaths);if(r.error)console.warn('Car image cleanup failed:',r.error.message);}
+   if(videoPaths.length){const r=await supabaseClient.storage.from('car-videos').remove(videoPaths);if(r.error)console.warn('Car video cleanup failed:',r.error.message);}
+   delete CAR_PHOTOS[id]; delete CAR_VIDEOS[id];
+   CARS=CARS.filter(c=>c.id!==id); current=current.filter(c=>c.id!==id);
+   favourites=favourites.filter(x=>x!==id); compare=compare.filter(x=>x!==id);
    localStorage.setItem('ger_favourites',JSON.stringify(favourites));
    navCounts();renderCars();renderFavs();renderCompare();
    toast('Sold car deleted permanently');
-   await loadCars();
-   await openAccount();
+   await loadCars(); await openAccount();
  }catch(err){toast(err.message||'Could not delete sold car')}
 }
 function getVideoDuration(file){return new Promise((resolve,reject)=>{const url=URL.createObjectURL(file),v=document.createElement('video');v.preload='metadata';v.onloadedmetadata=()=>{const d=v.duration;URL.revokeObjectURL(url);resolve(d)};v.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Could not read the video duration.'))};v.src=url})}
@@ -255,21 +241,28 @@ async function openAccount(){
  const incomingRows=incomingEnquiries.length?incomingEnquiries.map(e=>{const c=ownCarIds.find(x=>x.id===e.car_id);return `<div class="my-listing-row"><div><b>${c?c.make+' '+c.model:'Vehicle enquiry'}</b><br><small>From: ${e.customer_name||'Customer'} · ${e.customer_phone||e.customer_email||''}</small><br><small>${e.status||'new'} · ${new Date(e.created_at).toLocaleString()}</small><br>${e.message||''}</div><div class="listing-actions"><button class="btn danger" data-delete-enquiry="${e.id}">Delete</button></div></div>`}).join(''):'<p>No incoming enquiries yet.</p>';
  const listings=await loadMyListings();
  const listingRows=listings.length?listings.map(c=>`<div class="my-listing-row"><div><b>${c.make} ${c.model}</b><br><small>${c.year||''} · ${money(c.price)} · ${c.location||''} · <strong>${c.status}</strong></small></div><div class="listing-actions">${c.status==='active'?`<button class="btn ghost" data-sold="${c.id}">Mark Sold</button>`:''}${c.status==='sold'?`<button class="btn danger" data-delete-sold="${c.id}">Delete Sold Car</button>`:''}</div></div>`).join(''):'<p>No listings yet. Use “List Your Car” to upload one.</p>';
- openModal(`<span class="eyebrow">MY ACCOUNT</span><h2>${profile.full_name||authUser.email}</h2><form id="profileForm" class="contact-form" autocomplete="off"><input name="full_name" required placeholder="Full name" value="${profile.full_name||''}"><input name="phone" placeholder="Phone number" value="${profile.phone||''}"><input value="${authUser.email||''}" disabled><button class="btn primary">Save Profile</button></form><hr><div class="account-section"><h3>My Car Listings</h3><p class="muted">Manage your own listings. A sold car can be permanently deleted.</p><div>${listingRows}</div></div><hr><h3>Incoming Enquiries</h3><div>${incomingRows}</div><hr><h3>My Enquiries</h3><div>${rows}</div>${profile.role==='admin'?'<button id="adminReviewBtn" class="btn primary" style="margin-top:16px">ADMIN REVIEW • APPROVE / REJECT</button>':''}<button id="accountLogout" class="btn ghost" style="margin-top:16px">Logout</button>`);
+ openModal(`<span class="eyebrow">MY ACCOUNT</span><h2>${profile.full_name||authUser.email}</h2><form id="profileForm" class="contact-form" autocomplete="off"><input name="full_name" required placeholder="Full name" value="${profile.full_name||''}"><input name="phone" placeholder="Phone number" value="${profile.phone||''}"><input value="${authUser.email||''}" disabled><button class="btn primary">Save Profile</button></form><hr><div class="account-section"><h3>My Car Listings</h3><p class="muted">Manage your own listings. A sold car can be permanently deleted.</p><div>${listingRows}</div></div><hr><h3>Incoming Enquiries</h3><div>${incomingRows}</div><hr><h3>My Enquiries</h3><div>${rows}</div>${(authUser.email?.toLowerCase()==='paulbugwigwi954@gmail.com' && profile?.role==='admin')?'<button id="adminReviewBtn" class="btn primary" style="margin-top:16px">ADMIN REVIEW • APPROVE / REJECT DEALERS & CARS</button>':''}<button id="accountLogout" class="btn ghost" style="margin-top:16px">Logout</button>`);
  $('#profileForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const {error}=await supabaseClient.from('profiles').update({full_name:String(f.get('full_name')),phone:String(f.get('phone'))}).eq('id',authUser.id);if(error)toast(error.message);else{await loadProfile();toast('Profile updated');}};
  $$('[data-sold]').forEach(b=>b.onclick=()=>markSold(b.dataset.sold));
  $('[data-delete-sold]').forEach(b=>b.onclick=()=>deleteSoldCar(b.dataset.deleteSold));
- $('[data-delete-enquiry]').forEach(b=>b.onclick=async()=>{if(!confirm('Delete this enquiry?'))return;b.disabled=true;const {error}=await supabaseClient.from('enquiries').delete().eq('id',b.dataset.deleteEnquiry);if(error){toast(error.message);b.disabled=false}else{toast('Enquiry deleted');await openAccount();}});
+ $('[data-delete-enquiry]').forEach(btn=>btn.onclick=async()=>{
+   if(!confirm('Delete this enquiry?'))return;
+   btn.disabled=true;
+   const {data,error}=await supabaseClient.rpc('delete_my_enquiry',{p_enquiry_id:btn.dataset.deleteEnquiry});
+   if(error || data!==true){toast(error?.message||'Could not delete enquiry');btn.disabled=false;return}
+   toast('Enquiry deleted');
+   await openAccount();
+ });
  if($('#adminReviewBtn'))$('#adminReviewBtn').onclick=loadAdminReview;
  $('#accountLogout').onclick=async()=>{await supabaseClient.auth.signOut();closeModal()};
 }
 async function loadAdminReview(){
  if(!authUser || authUser.email?.toLowerCase()!=='paulbugwigwi954@gmail.com' || profile?.role!=='admin'){toast('Admin access required');return}
- const {data:pendingDealers=[],error:dealerError}=await supabaseClient.from('dealers').select('id,business_name,phone,email,location,owner_id,created_at').eq('verified',false).order('created_at',{ascending:false});
+ const {data:pendingDealers=[],error:dealerError}=await supabaseClient.rpc('admin_list_pending_dealers');
  if(dealerError){toast(dealerError.message);return}
- const {data,error}=await supabaseClient.from('cars').select('id,listing_id,make,model,year,price,status,location,seller_id,created_at').eq('status','pending_review').order('created_at',{ascending:false});
+ const {data,error}=await supabaseClient.rpc('admin_list_pending_cars');
  if(error){toast(error.message);return}
- const dealerRows=(pendingDealers||[]).map(d=>`<div class="my-listing-row"><div><b>${d.business_name||'Dealer application'}</b><br><small>${d.email||'—'} · ${d.phone||'—'} · ${d.location||'—'}</small></div><div class="listing-actions"><button class="btn primary" data-approve-dealer="${d.id}">Approve Dealer</button><button class="btn danger" data-reject-dealer="${d.id}">Reject</button></div></div>`).join('')||'<p>No dealer applications waiting for approval.</p>';
+  const dealerRows=(pendingDealers||[]).map(d=>`<div class="my-listing-row"><div><b>${d.business_name||'Dealer application'}</b><br><small>${d.email||'—'} · ${d.phone||'—'} · ${d.location||'—'}</small></div><div class="listing-actions"><button class="btn primary" data-approve-dealer="${d.id}">Approve Dealer</button><button class="btn danger" data-reject-dealer="${d.id}">Reject</button></div></div>`).join('')||'<p>No dealer applications waiting for approval.</p>';
  const rows=(data||[]).map(c=>`<div class="my-listing-row"><div><b>${c.make||''} ${c.model||''}</b><br><small>${c.listing_id||'No Listing ID'} · ${money(c.price)} · ${c.location||'—'} · ${c.year||'—'}</small></div><div class="listing-actions"><button class="btn primary" data-approve="${c.id}">Approve</button><button class="btn danger" data-reject="${c.id}">Reject</button></div></div>`).join('')||'<p>No listings waiting for review.</p>';
  openModal(`<span class="eyebrow">ADMIN REVIEW</span><h2>Dealers & Listings</h2><h3>Pending Dealer Accounts</h3><div>${dealerRows}</div><hr><h3>Pending Vehicle Listings</h3><div>${rows}</div>`);
  $$('[data-approve-dealer]').forEach(btn=>btn.onclick=async()=>{btn.disabled=true;const {error}=await supabaseClient.rpc('admin_approve_dealer',{p_dealer_id:btn.dataset.approveDealer});if(error)toast(error.message);else{toast('Dealer approved');await loadAdminReview();}});

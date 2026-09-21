@@ -100,6 +100,14 @@ async function loadCarPhotos(){
 }
 async function createListing(form){
  if(!authUser)return authModal('login');
+ await loadProfile();
+ const isDesignatedAdmin=authUser.email?.toLowerCase()==='paulbugwigwi954@gmail.com' && profile?.role==='admin';
+ if(!isDesignatedAdmin){
+   const {data:dealer,error:dealerError}=await supabaseClient.from('dealers').select('id,verified').eq('owner_id',authUser.id).maybeSingle();
+   if(dealerError)throw new Error(dealerError.message||'Could not verify dealer account.');
+   if(!dealer)throw new Error('Create your dealer profile first from Dealer Dashboard.');
+   if(!dealer.verified)throw new Error('Your dealer account is awaiting admin approval. You cannot post vehicles yet.');
+ }
  const fd=new FormData(form);const btn=form.querySelector('button[type=submit]');btn.disabled=true;btn.textContent='Uploading…';
  try{
    const mediaChoice=fd.get('mediaChoice')==='video'?'video':'photos';
@@ -239,24 +247,34 @@ async function openAccount(){
  if(!authUser)return authModal('login');
  await loadProfile();
  const {data:enquiries=[]}=await supabaseClient.from('enquiries').select('id,car_id,customer_name,message,status,created_at').eq('customer_id',authUser.id).order('created_at',{ascending:false}).limit(10);
- const rows=enquiries.length?enquiries.map(e=>{const c=CARS.find(x=>x.id===e.car_id);return `<div style="padding:10px 0;border-bottom:1px solid #ddd"><b>${c?c.make+' '+c.model:'Vehicle enquiry'}</b><br><small>${e.status||'new'} · ${new Date(e.created_at).toLocaleString()}</small><br>${e.message}</div>`}).join(''):'<p>No enquiries yet.</p>';
+ const rows=enquiries.length?enquiries.map(e=>{const c=CARS.find(x=>x.id===e.car_id);return `<div class="my-listing-row"><div><b>${c?c.make+' '+c.model:'Vehicle enquiry'}</b><br><small>${e.status||'new'} · ${new Date(e.created_at).toLocaleString()}</small><br>${e.message||''}</div><div class="listing-actions"><button class="btn danger" data-delete-enquiry="${e.id}">Delete</button></div></div>`}).join(''):'<p>No enquiries yet.</p>';
+ const ownCarIds=(await supabaseClient.from('cars').select('id,make,model').eq('seller_id',authUser.id)).data||[];
+ let incomingEnquiries=[];
+ if(ownCarIds.length){const ir=await supabaseClient.from('enquiries').select('id,car_id,customer_name,customer_phone,customer_email,message,status,created_at').in('car_id',ownCarIds.map(c=>c.id)).order('created_at',{ascending:false}).limit(50);if(!ir.error)incomingEnquiries=ir.data||[];}
+ const incomingRows=incomingEnquiries.length?incomingEnquiries.map(e=>{const c=ownCarIds.find(x=>x.id===e.car_id);return `<div class="my-listing-row"><div><b>${c?c.make+' '+c.model:'Vehicle enquiry'}</b><br><small>From: ${e.customer_name||'Customer'} · ${e.customer_phone||e.customer_email||''}</small><br><small>${e.status||'new'} · ${new Date(e.created_at).toLocaleString()}</small><br>${e.message||''}</div><div class="listing-actions"><button class="btn danger" data-delete-enquiry="${e.id}">Delete</button></div></div>`}).join(''):'<p>No incoming enquiries yet.</p>';
  const listings=await loadMyListings();
  const listingRows=listings.length?listings.map(c=>`<div class="my-listing-row"><div><b>${c.make} ${c.model}</b><br><small>${c.year||''} · ${money(c.price)} · ${c.location||''} · <strong>${c.status}</strong></small></div><div class="listing-actions">${c.status==='active'?`<button class="btn ghost" data-sold="${c.id}">Mark Sold</button>`:''}${c.status==='sold'?`<button class="btn danger" data-delete-sold="${c.id}">Delete Sold Car</button>`:''}</div></div>`).join(''):'<p>No listings yet. Use “List Your Car” to upload one.</p>';
- openModal(`<span class="eyebrow">MY ACCOUNT</span><h2>${profile.full_name||authUser.email}</h2><form id="profileForm" class="contact-form" autocomplete="off"><input name="full_name" required placeholder="Full name" value="${profile.full_name||''}"><input name="phone" placeholder="Phone number" value="${profile.phone||''}"><input value="${authUser.email||''}" disabled><button class="btn primary">Save Profile</button></form><hr><div class="account-section"><h3>My Car Listings</h3><p class="muted">Manage your own listings. A sold car can be permanently deleted.</p><div>${listingRows}</div></div><hr><h3>My Enquiries</h3><div>${rows}</div>${profile.role==='admin'?'<button id="adminReviewBtn" class="btn primary" style="margin-top:16px">ADMIN REVIEW • APPROVE / REJECT</button>':''}<button id="accountLogout" class="btn ghost" style="margin-top:16px">Logout</button>`);
+ openModal(`<span class="eyebrow">MY ACCOUNT</span><h2>${profile.full_name||authUser.email}</h2><form id="profileForm" class="contact-form" autocomplete="off"><input name="full_name" required placeholder="Full name" value="${profile.full_name||''}"><input name="phone" placeholder="Phone number" value="${profile.phone||''}"><input value="${authUser.email||''}" disabled><button class="btn primary">Save Profile</button></form><hr><div class="account-section"><h3>My Car Listings</h3><p class="muted">Manage your own listings. A sold car can be permanently deleted.</p><div>${listingRows}</div></div><hr><h3>Incoming Enquiries</h3><div>${incomingRows}</div><hr><h3>My Enquiries</h3><div>${rows}</div>${profile.role==='admin'?'<button id="adminReviewBtn" class="btn primary" style="margin-top:16px">ADMIN REVIEW • APPROVE / REJECT</button>':''}<button id="accountLogout" class="btn ghost" style="margin-top:16px">Logout</button>`);
  $('#profileForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const {error}=await supabaseClient.from('profiles').update({full_name:String(f.get('full_name')),phone:String(f.get('phone'))}).eq('id',authUser.id);if(error)toast(error.message);else{await loadProfile();toast('Profile updated');}};
  $$('[data-sold]').forEach(b=>b.onclick=()=>markSold(b.dataset.sold));
- $$('[data-delete-sold]').forEach(b=>b.onclick=()=>deleteSoldCar(b.dataset.deleteSold));
+ $('[data-delete-sold]').forEach(b=>b.onclick=()=>deleteSoldCar(b.dataset.deleteSold));
+ $('[data-delete-enquiry]').forEach(b=>b.onclick=async()=>{if(!confirm('Delete this enquiry?'))return;b.disabled=true;const {error}=await supabaseClient.from('enquiries').delete().eq('id',b.dataset.deleteEnquiry);if(error){toast(error.message);b.disabled=false}else{toast('Enquiry deleted');await openAccount();}});
  if($('#adminReviewBtn'))$('#adminReviewBtn').onclick=loadAdminReview;
  $('#accountLogout').onclick=async()=>{await supabaseClient.auth.signOut();closeModal()};
 }
 async function loadAdminReview(){
- if(!authUser || profile?.role!=='admin'){toast('Admin access required');return}
+ if(!authUser || authUser.email?.toLowerCase()!=='paulbugwigwi954@gmail.com' || profile?.role!=='admin'){toast('Admin access required');return}
+ const {data:pendingDealers=[],error:dealerError}=await supabaseClient.from('dealers').select('id,business_name,phone,email,location,owner_id,created_at').eq('verified',false).order('created_at',{ascending:false});
+ if(dealerError){toast(dealerError.message);return}
  const {data,error}=await supabaseClient.from('cars').select('id,listing_id,make,model,year,price,status,location,seller_id,created_at').eq('status','pending_review').order('created_at',{ascending:false});
  if(error){toast(error.message);return}
+ const dealerRows=(pendingDealers||[]).map(d=>`<div class="my-listing-row"><div><b>${d.business_name||'Dealer application'}</b><br><small>${d.email||'—'} · ${d.phone||'—'} · ${d.location||'—'}</small></div><div class="listing-actions"><button class="btn primary" data-approve-dealer="${d.id}">Approve Dealer</button><button class="btn danger" data-reject-dealer="${d.id}">Reject</button></div></div>`).join('')||'<p>No dealer applications waiting for approval.</p>';
  const rows=(data||[]).map(c=>`<div class="my-listing-row"><div><b>${c.make||''} ${c.model||''}</b><br><small>${c.listing_id||'No Listing ID'} · ${money(c.price)} · ${c.location||'—'} · ${c.year||'—'}</small></div><div class="listing-actions"><button class="btn primary" data-approve="${c.id}">Approve</button><button class="btn danger" data-reject="${c.id}">Reject</button></div></div>`).join('')||'<p>No listings waiting for review.</p>';
- openModal(`<span class="eyebrow">ADMIN REVIEW</span><h2>Pending Listings</h2><p>Approve a listing to publish it on the marketplace, or reject it for correction.</p><div>${rows}</div>`);
- $$('[data-approve]').forEach(b=>b.onclick=async()=>{b.disabled=true;const {error}=await supabaseClient.rpc('admin_approve_car',{p_car_id:b.dataset.approve});if(error)toast(error.message);else{toast('Listing approved');await loadAdminReview();await loadCars();}});
- $$('[data-reject]').forEach(b=>b.onclick=async()=>{b.disabled=true;const {error}=await supabaseClient.rpc('admin_reject_car',{p_car_id:b.dataset.reject});if(error)toast(error.message);else{toast('Listing rejected');await loadAdminReview();}});
+ openModal(`<span class="eyebrow">ADMIN REVIEW</span><h2>Dealers & Listings</h2><h3>Pending Dealer Accounts</h3><div>${dealerRows}</div><hr><h3>Pending Vehicle Listings</h3><div>${rows}</div>`);
+ $$('[data-approve-dealer]').forEach(btn=>btn.onclick=async()=>{btn.disabled=true;const {error}=await supabaseClient.rpc('admin_approve_dealer',{p_dealer_id:btn.dataset.approveDealer});if(error)toast(error.message);else{toast('Dealer approved');await loadAdminReview();}});
+ $$('[data-reject-dealer]').forEach(btn=>btn.onclick=async()=>{if(!confirm('Reject this dealer application?'))return;btn.disabled=true;const {error}=await supabaseClient.rpc('admin_reject_dealer',{p_dealer_id:btn.dataset.rejectDealer});if(error)toast(error.message);else{toast('Dealer rejected');await loadAdminReview();}});
+ $$('[data-approve]').forEach(btn=>btn.onclick=async()=>{btn.disabled=true;const {error}=await supabaseClient.rpc('admin_approve_car',{p_car_id:btn.dataset.approve});if(error)toast(error.message);else{toast('Listing approved');await loadAdminReview();await loadCars();}});
+ $$('[data-reject]').forEach(btn=>btn.onclick=async()=>{btn.disabled=true;const {error}=await supabaseClient.rpc('admin_reject_car',{p_car_id:btn.dataset.reject});if(error)toast(error.message);else{toast('Listing rejected');await loadAdminReview();}});
 }
 
 async function updateAuthUI(){
@@ -299,7 +317,8 @@ async function loadDealerDashboard(){
   const {data:adminProfile,error:profileError}=await supabaseClient.from('profiles').select('id,full_name,phone,role').eq('id',authUser.id).maybeSingle();
   if(profileError){toast(profileError.message||'Could not load account permissions');return}
   profile=adminProfile||profile;
-  if(profile?.role!=='admin'){toast('Dealer Dashboard is restricted to admin only.');return}
+  const isDesignatedAdmin=authUser.email?.toLowerCase()==='paulbugwigwi954@gmail.com' && profile?.role==='admin';
+  if(!isDesignatedAdmin && !['dealer','customer'].includes(profile?.role)){toast('Account access is unavailable.');return}
 
   const {data:dealer,error:dealerError}=await supabaseClient.from('dealers').select('*').eq('owner_id',authUser.id).maybeSingle();
   if(dealerError){toast(dealerError.message);return}
@@ -324,6 +343,10 @@ async function loadDealerDashboard(){
     $('#dealerForm').onsubmit=async e=>{
       e.preventDefault();await saveDealerProfile(e.target,null);
     };
+    return;
+  }
+  if(!isDesignatedAdmin && !dealer.verified){
+    openModal('<span class="eyebrow">DEALER DASHBOARD</span><h2>Approval Pending</h2><p>Your dealer profile is waiting for GER Cars Tanzania admin approval.</p><p class="muted">After approval you can upload vehicle photos/videos and submit listings for review.</p><button class="btn primary" onclick="closeModal()">Close</button>');
     return;
   }
 

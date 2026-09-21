@@ -157,8 +157,8 @@ async function createListing(form){
 }
 async function loadMyListings(){
  if(!authUser)return [];
- const {data,error}=await supabaseClient.from('cars').select('id,make,model,year,price,status,location,created_at').eq('seller_id',authUser.id).order('created_at',{ascending:false});
- if(error)return [];
+ const {data,error}=await supabaseClient.from('cars').select('id,make,model,year,price,status,location,created_at,dealer_id,seller_id').eq('seller_id',authUser.id).order('created_at',{ascending:false});
+ if(error){toast(error.message||'Could not load your listings');return [];}
  return data||[];
 }
 async function markSold(id){

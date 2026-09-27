@@ -51,8 +51,8 @@ async function toggleFavourite(id){
  }catch(err){toast(err.message||'Could not update favourite')}
 }
 function bindCards(){
- $('[data-fav]').forEach(b=>b.onclick=()=>toggleFavourite(b.dataset.fav));
- $('[data-compare]').forEach(b=>b.onclick=()=>{const id=b.dataset.compare;if(compare.includes(id))compare=compare.filter(x=>x!==id);else if(compare.length<4)compare.push(id);else return toast('Compare limit is 4 cars');localStorage.setItem('ger_compare',JSON.stringify(compare));navCounts();renderCars();renderCompare()});
+ $$('[data-fav]').forEach(b=>b.onclick=()=>toggleFavourite(b.dataset.fav));
+ $$('[data-compare]').forEach(b=>b.onclick=()=>{const id=b.dataset.compare;if(compare.includes(id))compare=compare.filter(x=>x!==id);else if(compare.length<4)compare.push(id);else return toast('Compare limit is 4 cars');localStorage.setItem('ger_compare',JSON.stringify(compare));navCounts();renderCars();renderCompare()});
  $$('[data-detail]').forEach(b=>b.onclick=()=>openDetail(b.dataset.detail));
  $$('[data-photo-target]').forEach(b=>b.onclick=()=>{const id=b.dataset.photoTarget;const main=document.querySelector(`[data-main-image="${id}"]`);if(main){main.src=b.dataset.photo;$$(`[data-photo-target="${id}"]`).forEach(x=>x.classList.remove('active'));b.classList.add('active')}});
 }
@@ -244,8 +244,8 @@ async function openAccount(){
  openModal(`<span class="eyebrow">MY ACCOUNT</span><h2>${profile.full_name||authUser.email}</h2><form id="profileForm" class="contact-form" autocomplete="off"><input name="full_name" required placeholder="Full name" value="${profile.full_name||''}"><input name="phone" placeholder="Phone number" value="${profile.phone||''}"><input value="${authUser.email||''}" disabled><button class="btn primary">Save Profile</button></form><hr><div class="account-section"><h3>My Car Listings</h3><p class="muted">Manage your own listings. A sold car can be permanently deleted.</p><div>${listingRows}</div></div><hr><h3>Incoming Enquiries</h3><div>${incomingRows}</div><hr><h3>My Enquiries</h3><div>${rows}</div>${(authUser.email?.toLowerCase()==='paulbugwigwi954@gmail.com' && profile?.role==='admin')?'<button id="adminReviewBtn" class="btn primary" style="margin-top:16px">ADMIN REVIEW • APPROVE / REJECT DEALERS & CARS</button>':''}<button id="accountLogout" class="btn ghost" style="margin-top:16px">Logout</button>`);
  $('#profileForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const {error}=await supabaseClient.from('profiles').update({full_name:String(f.get('full_name')),phone:String(f.get('phone'))}).eq('id',authUser.id);if(error)toast(error.message);else{await loadProfile();toast('Profile updated');}};
  $$('[data-sold]').forEach(b=>b.onclick=()=>markSold(b.dataset.sold));
- $('[data-delete-sold]').forEach(b=>b.onclick=()=>deleteSoldCar(b.dataset.deleteSold));
- $('[data-delete-enquiry]').forEach(btn=>btn.onclick=async()=>{
+ $$('[data-delete-sold]').forEach(b=>b.onclick=()=>deleteSoldCar(b.dataset.deleteSold));
+ $$('[data-delete-enquiry]').forEach(btn=>btn.onclick=async()=>{
    if(!confirm('Delete this enquiry?'))return;
    btn.disabled=true;
    const {data,error}=await supabaseClient.rpc('delete_my_enquiry',{p_enquiry_id:btn.dataset.deleteEnquiry});

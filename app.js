@@ -196,15 +196,9 @@ async function markSold(id){
 async function deleteSoldCar(id){
  if(!confirm('Delete this sold car permanently? This cannot be undone.'))return;
  try{
-   const {data:imgs}=await supabaseClient.from('car_images').select('storage_path').eq('car_id',id);
-   const {data:videos}=await supabaseClient.from('car_videos').select('storage_path').eq('car_id',id);
-   const imagePaths=(imgs||[]).map(x=>x.storage_path).filter(Boolean);
-   const videoPaths=(videos||[]).map(x=>x.storage_path).filter(Boolean);
-   const {data,error}=await supabaseClient.rpc('seller_delete_sold_car',{p_car_id:id});
+   const {data,error}=await supabaseClient.functions.invoke('delete-car-media',{body:{car_id:id}});
    if(error)throw error;
-   if(data!==true)throw new Error('The car could not be deleted.');
-   if(imagePaths.length){const r=await supabaseClient.storage.from('car-images').remove(imagePaths);if(r.error)console.warn('Car image cleanup failed:',r.error.message);}
-   if(videoPaths.length){const r=await supabaseClient.storage.from('car-videos').remove(videoPaths);if(r.error)console.warn('Car video cleanup failed:',r.error.message);}
+   if(!data?.success)throw new Error(data?.error||'The car could not be deleted.');
    delete CAR_PHOTOS[id]; delete CAR_VIDEOS[id];
    CARS=CARS.filter(c=>c.id!==id); current=current.filter(c=>c.id!==id);
    favourites=favourites.filter(x=>x!==id); compare=compare.filter(x=>x!==id);

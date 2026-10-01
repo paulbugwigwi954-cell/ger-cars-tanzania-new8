@@ -3,6 +3,20 @@ const $=s=>document.querySelector(s);const $$=s=>[...document.querySelectorAll(s
 const TZ_REGIONS=['Arusha','Dar es Salaam','Dodoma','Geita','Iringa','Kagera','Katavi','Kigoma','Kilimanjaro','Lindi','Manyara','Mara','Mbeya','Morogoro','Mtwara','Mwanza','Njombe','Pwani (Coast)','Rukwa','Ruvuma','Shinyanga','Simiyu','Singida','Songwe','Tabora','Tanga','Kaskazini Pemba','Kaskazini Unguja','Kusini Pemba','Kusini Unguja','Mjini Magharibi (Zanzibar)'];
 const OTHER_COUNTRIES=['Kenya','Uganda','Rwanda','Burundi','DR Congo','Zambia','Malawi','Mozambique','South Africa','UAE (Dubai)','Other Country'];
 const ALL_LOCATIONS=[...TZ_REGIONS,...OTHER_COUNTRIES];
+const CLOUDINARY_CLOUD_NAME='gw07hcxm';
+const CLOUDINARY_UPLOAD_PRESET='gercars_unsigned';
+async function uploadToCloudinary(file, resourceType){
+  const url=`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`;
+  const formData=new FormData();
+  formData.append('file',file);
+  formData.append('upload_preset',CLOUDINARY_UPLOAD_PRESET);
+  formData.append('folder','gercars-tanzania');
+  const res=await fetch(url,{method:'POST',body:formData});
+  const data=await res.json();
+  if(!res.ok)throw new Error(data?.error?.message||'Cloudinary upload failed');
+  return data;
+}
+
 const MAKES=['Toyota','Nissan','Honda','Mazda','Mitsubishi','Suzuki','Subaru','Isuzu','Daihatsu','Lexus','Mercedes-Benz','BMW','Audi','Volkswagen','Porsche','Land Rover','Range Rover','Jaguar','Mini','Hyundai','Kia','Ford','Jeep','Chevrolet','GMC','Dodge','Chrysler','Peugeot','Renault','Citroën','Fiat','Volvo','Skoda','Seat','Alfa Romeo','Tata','Mahindra','Great Wall','Haval','Chery','BYD','Geely','MG','Changan','JAC','Foton','Scania','MAN','Acura','Infiniti','Cadillac','Ferrari','Lamborghini','Bentley','Rolls-Royce','Maserati','Other'];
 function populateMakeSelects(){
   const filterSelect=$('#makeFilter');
@@ -150,25 +164,16 @@ async function createListing(form){
    const {data:car,error}=await supabaseClient.from('cars').insert({seller_id:authUser.id,title:`${make} ${model}`,make,model,year:Number(fd.get('year')||0),condition:String(fd.get('condition')||'used').toLowerCase(),price:Number(fd.get('price')||0),location:String(fd.get('location')||''),mileage:Number(fd.get('mileage')||0),fuel_type:String(fd.get('fuel_type')||''),transmission:String(fd.get('transmission')||''),body_type:String(fd.get('body_type')||''),description:String(fd.get('description')||''),engine_cc:Number(fd.get('engine_cc')||0)||null,drive_type:String(fd.get('drive_type')||''),doors:Number(fd.get('doors')||0)||null,seats:Number(fd.get('seats')||0)||null,exterior_color:String(fd.get('exterior_color')||''),interior_color:String(fd.get('interior_color')||''),registration_year:Number(fd.get('registration_year')||0)||null,import_year:Number(fd.get('import_year')||0)||null,ownership:String(fd.get('ownership')||''),service_history:String(fd.get('service_history')||''),accident_history:String(fd.get('accident_history')||''),condition_notes:String(fd.get('condition_notes')||''),features:String(fd.get('features')||''),documents:String(fd.get('documents')||''),warranty:String(fd.get('warranty')||''),negotiable:fd.get('negotiable')==='on',status:'pending_review',verified:false,featured:false}).select().single();
    if(error)throw error;
    const uploaded=[];
-   const uploadedPaths=[];
-   let uploadedVideoPath=null;
    try{
      for(let i=0;i<files.length;i++){
        const file=files[i];
-       const safe=file.name.toLowerCase().replace(/[^a-z0-9._-]/g,'-');
-       const path=authUser.id+'/'+car.id+'/'+Date.now()+'-'+i+'-'+safe;
-       const up=await supabaseClient.storage.from('car-images').upload(path,file,{upsert:false,contentType:file.type||'image/jpeg'});
-       if(up.error)throw up.error;
-       uploadedPaths.push(path);
-       const url=supabaseClient.storage.from('car-images').getPublicUrl(path).data.publicUrl;
-       const ins=await supabaseClient.from('car_images').insert({car_id:car.id,storage_path:path,public_url:url,sort_order:i});
+       const cres=await uploadToCloudinary(file,'image');
+       const ins=await supabaseClient.from('car_images').insert({car_id:car.id,storage_path:cres.public_id,public_url:cres.secure_url,sort_order:i});
        if(ins.error)throw ins.error;
-       uploaded.push(url);
+       uploaded.push(cres.secure_url);
      }
-     if(videoFile){const duration=await getVideoDuration(videoFile);const safeVideo=videoFile.name.toLowerCase().replace(/[^a-z0-9._-]/g,'-');const videoPath=authUser.id+'/'+car.id+'/video-'+Date.now()+'-'+safeVideo;const upv=await supabaseClient.storage.from('car-videos').upload(videoPath,videoFile,{upsert:false,contentType:videoFile.type});if(upv.error)throw upv.error;uploadedVideoPath=videoPath;const videoUrl=supabaseClient.storage.from('car-videos').getPublicUrl(videoPath).data.publicUrl;const inv=await supabaseClient.from('car_videos').insert({car_id:car.id,seller_id:authUser.id,storage_path:videoPath,public_url:videoUrl,duration_seconds:Math.min(duration,60),file_size_bytes:videoFile.size,mime_type:videoFile.type});if(inv.error)throw inv.error;}
+     if(videoFile){const duration=await getVideoDuration(videoFile);const vres=await uploadToCloudinary(videoFile,'video');const inv=await supabaseClient.from('car_videos').insert({car_id:car.id,seller_id:authUser.id,storage_path:vres.public_id,public_url:vres.secure_url,duration_seconds:Math.min(duration,60),file_size_bytes:videoFile.size,mime_type:videoFile.type});if(inv.error)throw inv.error;}
    }catch(uploadErr){
-     if(uploadedPaths.length)await supabaseClient.storage.from('car-images').remove(uploadedPaths);
-     if(uploadedVideoPath)await supabaseClient.storage.from('car-videos').remove([uploadedVideoPath]);
      await supabaseClient.from('car_images').delete().eq('car_id',car.id);
      await supabaseClient.from('car_videos').delete().eq('car_id',car.id);
      await supabaseClient.from('cars').delete().eq('id',car.id).eq('seller_id',authUser.id);
@@ -426,10 +431,8 @@ async function saveDealerProfile(form,existing){
     if(logo instanceof File && logo.size){
       if(!logo.type.startsWith('image/'))throw new Error('Only image files are allowed.');
       if(logo.size>5*1024*1024)throw new Error('Dealer logo must be 5 MB or smaller.');
-      const path=`${authUser.id}/logo-${Date.now()}-${logo.name.toLowerCase().replace(/[^a-z0-9._-]/g,'-')}`;
-      const up=await supabaseClient.storage.from('dealer-assets').upload(path,logo,{upsert:false,contentType:logo.type});
-      if(up.error)throw up.error;
-      logoUrl=supabaseClient.storage.from('dealer-assets').getPublicUrl(path).data.publicUrl;
+      const cres=await uploadToCloudinary(logo,'image');
+      logoUrl=cres.secure_url;
     }
     const payload={p_business_name:String(f.get('business_name')||''),p_phone:String(f.get('phone')||''),p_whatsapp:String(f.get('whatsapp')||''),p_email:String(f.get('email')||''),p_location:String(f.get('location')||''),p_description:String(f.get('description')||''),p_logo_url:logoUrl};
     const {error}=await supabaseClient.rpc('upsert_my_dealer_profile',payload);
